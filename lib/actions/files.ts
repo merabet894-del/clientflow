@@ -75,6 +75,24 @@ export async function uploadFile(formData: FormData) {
     return { success: false, error: "File uploaded but metadata save failed." }
   }
 
+  if (projectId) {
+    const { data: project } = await supabase
+      .from("projects")
+      .select("progress")
+      .eq("id", projectId)
+      .single()
+
+    const currentProgress = project?.progress ?? 0
+    if (currentProgress < 40) {
+      await supabase
+        .from("projects")
+        .update({ progress: 40 })
+        .eq("id", projectId)
+    }
+
+    revalidatePath(`/dashboard/projects/${projectId}`)
+  }
+
   revalidatePath("/dashboard/files")
   return { success: true }
 }

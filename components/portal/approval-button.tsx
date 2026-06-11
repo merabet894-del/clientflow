@@ -1,14 +1,22 @@
 "use client"
 
-import { useActionState } from "react"
+import { useActionState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { approvePortalProject } from "@/lib/actions/portal-actions"
 
 export function ApprovalButton({ token }: { token: string }) {
+  const router = useRouter()
   const [state, formAction, isPending] = useActionState(
     approvePortalProject.bind(null, token),
     null
   )
+
+  useEffect(() => {
+    if (state?.success) {
+      router.refresh()
+    }
+  }, [router, state?.success])
 
   if (state?.success) {
     return (
@@ -19,9 +27,9 @@ export function ApprovalButton({ token }: { token: string }) {
   }
 
   return (
-    <form action={formAction}>
+    <form action={formAction} className="min-w-0">
       <h3 className="text-xl font-semibold">Ready to approve?</h3>
-      <p className="mt-3 text-sm leading-6 text-white/60">
+      <p className="mt-3 text-sm leading-6 text-white/70">
         Approving confirms that this deliverable is accepted and the
         agency can move to the next step.
       </p>

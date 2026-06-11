@@ -17,7 +17,7 @@ import Link from "next/link"
 function getStatusClass(status: string) {
   if (status === "completed") return "border-emerald-200 bg-emerald-50 text-emerald-700"
   if (status === "needs_feedback") return "border-blue-200 bg-blue-50 text-blue-700"
-  return "border-black/10 bg-white text-black"
+  return "border-black/15 bg-white text-black"
 }
 
 function formatStatus(status: string) {
@@ -56,30 +56,30 @@ export default async function ClientsPage() {
         <AddClientDialog />
       </header>
 
-      <div className="mt-8 grid gap-4 md:grid-cols-3">
-        <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
-          <CardContent className="p-5">
+      <div className="mt-8 grid gap-4 sm:grid-cols-3">
+        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
+          <CardContent className="p-4 sm:p-5">
             <p className="text-sm text-muted-foreground">Total clients</p>
-            <p className="mt-3 text-3xl font-semibold">{totalClients}</p>
+            <p className="mt-3 text-2xl font-semibold sm:text-3xl">{totalClients}</p>
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
-          <CardContent className="p-5">
+        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
+          <CardContent className="p-4 sm:p-5">
             <p className="text-sm text-muted-foreground">Active clients</p>
-            <p className="mt-3 text-3xl font-semibold">{activeClients}</p>
+            <p className="mt-3 text-2xl font-semibold sm:text-3xl">{activeClients}</p>
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
-          <CardContent className="p-5">
+        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
+          <CardContent className="p-4 sm:p-5">
             <p className="text-sm text-muted-foreground">Need attention</p>
-            <p className="mt-3 text-3xl font-semibold">{needAttention}</p>
+            <p className="mt-3 text-2xl font-semibold sm:text-3xl">{needAttention}</p>
           </CardContent>
         </Card>
       </div>
 
-      <Card className="mt-6 rounded-2xl border-black/10 bg-white shadow-sm">
+      <Card className="mt-6 rounded-2xl border-black/15 bg-white shadow-sm">
         <CardContent className="p-5">
           <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
@@ -91,17 +91,25 @@ export default async function ClientsPage() {
 
             <Input
               placeholder="Search clients..."
-              className="h-10 max-w-sm rounded-full bg-[#f7f7f5]"
+              className="h-10 w-full rounded-full bg-[#f7f7f5] md:w-72"
             />
           </div>
 
           {clients.length === 0 ? (
-            <div className="py-12 text-center">
-              <p className="text-muted-foreground">
-                No clients yet. Add your first client to create a portal workspace.
+            <div className="py-16 text-center">
+              <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-black/[0.04]">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-black/30"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              </div>
+              <h3 className="text-lg font-semibold">No clients yet</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Add your first client to create a portal workspace.
               </p>
+              <div className="mt-5 inline-flex">
+                <AddClientDialog />
+              </div>
             </div>
           ) : (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -125,9 +133,9 @@ export default async function ClientsPage() {
                       </Link>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {client.email ?? "—"}
+                      {client.email ?? "-"}
                     </TableCell>
-                    <TableCell>{client.company ?? "—"}</TableCell>
+                    <TableCell>{client.company ?? "-"}</TableCell>
                     <TableCell>
                       <Badge
                         variant="outline"
@@ -143,6 +151,7 @@ export default async function ClientsPage() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>

@@ -12,8 +12,12 @@ export type Agency = {
 export type DashboardStats = {
   activeClients: number
   openProjects: number
+  totalProjects: number
   waitingApprovals: number
   filesShared: number
+  feedbackCount: number
+  approvalCount: number
+  agencyId: string | null
 }
 
 export type RecentProject = {
@@ -21,6 +25,7 @@ export type RecentProject = {
   name: string
   status: string
   updated_at: string
+  portal_token: string
   clients: { name: string } | null
 }
 
@@ -37,6 +42,17 @@ export type DashboardOverview = {
   recentActivity: ActivityItem[]
 }
 
+const emptyStats: DashboardStats = {
+  activeClients: 0,
+  openProjects: 0,
+  totalProjects: 0,
+  waitingApprovals: 0,
+  filesShared: 0,
+  feedbackCount: 0,
+  approvalCount: 0,
+  agencyId: null,
+}
+
 export async function getCurrentAgency(): Promise<Agency | null> {
   const supabase = await createClient()
 
@@ -49,7 +65,9 @@ export async function getCurrentAgency(): Promise<Agency | null> {
     .from("agencies")
     .select("*")
     .eq("owner_id", user.id)
-    .single()
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle()
 
   return data
 }
@@ -98,7 +116,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) return { activeClients: 0, openProjects: 0, waitingApprovals: 0, filesShared: 0 }
+  if (!user) return emptyStats
 
   const { data: agency } = await supabase
     .from("agencies")
@@ -106,7 +124,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     .eq("owner_id", user.id)
     .single()
 
-  if (!agency) return { activeClients: 0, openProjects: 0, waitingApprovals: 0, filesShared: 0 }
+  if (!agency) return emptyStats
 
   const { data: projectRows } = await supabase
     .from("projects")
@@ -118,37 +136,59 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   const [
     { count: clientsCount },
     { count: projectsCount },
-    { count: approvalsCount },
+    { count: totalProjectsCount },
+    { count: waitingApprovalsCount },
     { count: filesCount },
+    { count: feedbackCount },
+    { count: approvalCount },
   ] = await Promise.all([
     supabase
       .from("clients")
       .select("*", { count: "exact", head: true })
-      .eq("agency_id", agency.id)
-      .eq("status", "active"),
+      .eq("agency_id", agency.id),
     supabase
       .from("projects")
       .select("*", { count: "exact", head: true })
       .eq("agency_id", agency.id)
-      .neq("status", "completed"),
+      .not("status", "in", "(\"completed\",\"approved\")"),
+    supabase
+      .from("projects")
+      .select("*", { count: "exact", head: true })
+      .eq("agency_id", agency.id),
     projectIds.length > 0
       ? supabase
           .from("approvals")
           .select("*", { count: "exact", head: true })
           .in("project_id", projectIds)
-          .eq("status", "pending")
+          .in("status", ["pending", "waiting approval"])
       : { count: 0 },
     supabase
       .from("files")
       .select("*", { count: "exact", head: true })
       .eq("agency_id", agency.id),
+    projectIds.length > 0
+      ? supabase
+          .from("comments")
+          .select("*", { count: "exact", head: true })
+          .in("project_id", projectIds)
+      : { count: 0 },
+    projectIds.length > 0
+      ? supabase
+          .from("approvals")
+          .select("*", { count: "exact", head: true })
+          .in("project_id", projectIds)
+      : { count: 0 },
   ])
 
   return {
     activeClients: clientsCount ?? 0,
     openProjects: projectsCount ?? 0,
-    waitingApprovals: approvalsCount ?? 0,
+    totalProjects: totalProjectsCount ?? 0,
+    waitingApprovals: waitingApprovalsCount ?? 0,
     filesShared: filesCount ?? 0,
+    feedbackCount: feedbackCount ?? 0,
+    approvalCount: approvalCount ?? 0,
+    agencyId: agency?.id ?? null,
   }
 }
 
@@ -159,7 +199,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) {
-    return { stats: { activeClients: 0, openProjects: 0, waitingApprovals: 0, filesShared: 0 }, recentProjects: [], recentActivity: [] }
+    return { stats: emptyStats, recentProjects: [], recentActivity: [] }
   }
 
   const { data: agency } = await supabase
@@ -169,7 +209,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     .single()
 
   if (!agency) {
-    return { stats: { activeClients: 0, openProjects: 0, waitingApprovals: 0, filesShared: 0 }, recentProjects: [], recentActivity: [] }
+    return { stats: emptyStats, recentProjects: [], recentActivity: [] }
   }
 
   const { data: projectRows } = await supabase
@@ -182,8 +222,11 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
   const [
     { count: clientsCount },
     { count: projectsCount },
-    { count: approvalsCount },
+    { count: totalProjectsCount },
+    { count: waitingApprovalsCount },
     { count: filesCount },
+    { count: feedbackCount },
+    { count: approvalCount },
     recentProjectsData,
     recentCommentsData,
     recentApprovalsData,
@@ -191,27 +234,42 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     supabase
       .from("clients")
       .select("*", { count: "exact", head: true })
-      .eq("agency_id", agency.id)
-      .eq("status", "active"),
+      .eq("agency_id", agency.id),
     supabase
       .from("projects")
       .select("*", { count: "exact", head: true })
       .eq("agency_id", agency.id)
-      .neq("status", "completed"),
+      .not("status", "in", "(\"completed\",\"approved\")"),
+    supabase
+      .from("projects")
+      .select("*", { count: "exact", head: true })
+      .eq("agency_id", agency.id),
     projectIds.length > 0
       ? supabase
           .from("approvals")
           .select("*", { count: "exact", head: true })
           .in("project_id", projectIds)
-          .eq("status", "pending")
+          .in("status", ["pending", "waiting approval"])
       : { count: 0 },
     supabase
       .from("files")
       .select("*", { count: "exact", head: true })
       .eq("agency_id", agency.id),
+    projectIds.length > 0
+      ? supabase
+          .from("comments")
+          .select("*", { count: "exact", head: true })
+          .in("project_id", projectIds)
+      : { count: 0 },
+    projectIds.length > 0
+      ? supabase
+          .from("approvals")
+          .select("*", { count: "exact", head: true })
+          .in("project_id", projectIds)
+      : { count: 0 },
     supabase
       .from("projects")
-      .select("id, name, status, updated_at, clients(name)")
+      .select("id, name, status, updated_at, portal_token, clients(name)")
       .eq("agency_id", agency.id)
       .order("updated_at", { ascending: false })
       .limit(10),
@@ -267,8 +325,12 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     stats: {
       activeClients: clientsCount ?? 0,
       openProjects: projectsCount ?? 0,
-      waitingApprovals: approvalsCount ?? 0,
+      totalProjects: totalProjectsCount ?? 0,
+      waitingApprovals: waitingApprovalsCount ?? 0,
       filesShared: filesCount ?? 0,
+      feedbackCount: feedbackCount ?? 0,
+      approvalCount: approvalCount ?? 0,
+      agencyId: agency?.id ?? null,
     },
     recentProjects,
     recentActivity: activity.slice(0, 10),

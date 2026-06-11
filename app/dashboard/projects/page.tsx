@@ -19,15 +19,16 @@ function getStatusClass(status: string) {
   if (status === "completed") return "border-emerald-200 bg-emerald-50 text-emerald-700"
   if (status === "waiting approval") return "border-amber-200 bg-amber-50 text-amber-700"
   if (status === "client feedback") return "border-blue-200 bg-blue-50 text-blue-700"
-  return "border-black/10 bg-white text-black"
+  return "border-black/15 bg-white text-black"
 }
 
 function formatStatus(status: string) {
   switch (status) {
     case "active": return "In progress"
     case "waiting approval": return "Waiting approval"
-    case "client feedback": return "Client feedback"
+    case "client feedback": return "Needs changes"
     case "completed": return "Completed"
+    case "approved": return "Completed"
     default: return status.charAt(0).toUpperCase() + status.slice(1)
   }
 }
@@ -69,30 +70,30 @@ export default async function ProjectsPage() {
         <AddProjectDialog clients={clients} />
       </header>
 
-      <div className="mt-8 grid gap-4 md:grid-cols-3">
-        <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
-          <CardContent className="p-5">
+      <div className="mt-8 grid gap-4 sm:grid-cols-3">
+        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
+          <CardContent className="p-4 sm:p-5">
             <p className="text-sm text-muted-foreground">Total projects</p>
-            <p className="mt-3 text-3xl font-semibold">{totalProjects}</p>
+            <p className="mt-3 text-2xl font-semibold sm:text-3xl">{totalProjects}</p>
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
-          <CardContent className="p-5">
+        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
+          <CardContent className="p-4 sm:p-5">
             <p className="text-sm text-muted-foreground">Waiting approval</p>
-            <p className="mt-3 text-3xl font-semibold">{waitingApproval}</p>
+            <p className="mt-3 text-2xl font-semibold sm:text-3xl">{waitingApproval}</p>
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
-          <CardContent className="p-5">
+        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
+          <CardContent className="p-4 sm:p-5">
             <p className="text-sm text-muted-foreground">Completed</p>
-            <p className="mt-3 text-3xl font-semibold">{completed}</p>
+            <p className="mt-3 text-2xl font-semibold sm:text-3xl">{completed}</p>
           </CardContent>
         </Card>
       </div>
 
-      <Card className="mt-6 rounded-2xl border-black/10 bg-white shadow-sm">
+      <Card className="mt-6 rounded-2xl border-black/15 bg-white shadow-sm">
         <CardContent className="p-5">
           <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
@@ -104,18 +105,25 @@ export default async function ProjectsPage() {
 
             <Input
               placeholder="Search projects..."
-              className="h-10 max-w-sm rounded-full bg-[#f7f7f5]"
+              className="h-10 w-full rounded-full bg-[#f7f7f5] md:w-72"
             />
           </div>
 
           {projects.length === 0 ? (
-            <div className="py-12 text-center">
-              <p className="text-muted-foreground">
-                No projects yet. Create your first project and invite a client to
-                review it.
+            <div className="py-16 text-center">
+              <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-black/[0.04]">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-black/30"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 3v18"/></svg>
+              </div>
+              <h3 className="text-lg font-semibold">No projects yet</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Create your first project and invite a client to review it.
               </p>
+              <div className="mt-5 inline-flex">
+                <AddProjectDialog clients={clients} />
+              </div>
             </div>
           ) : (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -143,7 +151,7 @@ export default async function ProjectsPage() {
                       </Link>
                     </TableCell>
                     <TableCell>
-                      {project.clients?.name ?? "—"}
+                      {project.clients?.name ?? "-"}
                     </TableCell>
                     <TableCell>
                       <Badge
@@ -171,6 +179,7 @@ export default async function ProjectsPage() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>

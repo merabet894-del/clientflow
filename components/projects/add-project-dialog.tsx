@@ -12,7 +12,6 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -20,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 import { createProject } from "@/lib/actions/create-project"
 import type { Client } from "@/lib/actions/clients"
 
@@ -123,35 +123,9 @@ export function AddProjectDialog({ clients }: { clients: Client[] }) {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
-              <Select name="status" defaultValue="active">
-                <SelectTrigger id="status" className="w-full rounded-xl bg-[#f7f7f5]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">In progress</SelectItem>
-                  <SelectItem value="waiting approval">Waiting approval</SelectItem>
-                  <SelectItem value="client feedback">Client feedback</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="progress">Progress (0-100)</Label>
-              <Input
-                id="progress"
-                name="progress"
-                type="number"
-                min="0"
-                max="100"
-                placeholder="0"
-                className="rounded-xl bg-[#f7f7f5]"
-              />
-            </div>
-          </div>
+          <p className="text-xs text-muted-foreground">
+            Progress updates automatically as files are shared and approvals are completed.
+          </p>
 
           <Button type="submit" className="w-full rounded-full" disabled={loading}>
             {loading ? "Creating..." : "Create project"}

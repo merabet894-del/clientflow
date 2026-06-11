@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useActionState, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import {
@@ -8,51 +8,65 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { createClient } from "@/lib/actions/create-client"
+import { createClientFormAction } from "@/lib/actions/create-client"
 
 export function AddClientDialog() {
   const router = useRouter()
   const [open, setOpen] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
-  const formRef = useRef<HTMLFormElement>(null)
+  const [dialogKey, setDialogKey] = useState(0)
+
+  const openDialog = () => {
+    setDialogKey((key) => key + 1)
+    setOpen(true)
+  }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button className="rounded-full">Add client</Button>
-      </DialogTrigger>
+    <>
+      <Button type="button" className="rounded-full" onClick={openDialog}>
+        Add client
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        {open && (
+          <AddClientDialogForm
+            key={dialogKey}
+            onCreated={() => {
+              setOpen(false)
+              router.refresh()
+            }}
+          />
+        )}
+      </Dialog>
+    </>
+  )
+}
+
+function AddClientDialogForm({ onCreated }: { onCreated: () => void }) {
+  const [state, formAction, isPending] = useActionState(createClientFormAction, null)
+  const formRef = useRef<HTMLFormElement>(null)
+
+  useEffect(() => {
+    if (state?.success && state.clientId) {
+      formRef.current?.reset()
+      onCreated()
+    }
+  }, [onCreated, state?.clientId, state?.success])
+
+  return (
       <DialogContent className="rounded-2xl sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Add client</DialogTitle>
         </DialogHeader>
         <form
           ref={formRef}
-          onSubmit={async (e) => {
-            e.preventDefault()
-            setLoading(true)
-            setError("")
-
-            const result = await createClient(new FormData(e.currentTarget))
-
-            if (result?.success) {
-              formRef.current?.reset()
-              setOpen(false)
-              router.refresh()
-            } else {
-              setError(result?.error ?? "Something went wrong")
-              setLoading(false)
-            }
-          }}
+          action={formAction}
           className="space-y-4"
         >
-          {error && (
+          {state?.error && (
             <div className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
-              {error}
+              {state.error}
             </div>
           )}
 
@@ -85,11 +99,10 @@ export function AddClientDialog() {
               className="rounded-xl bg-[#f7f7f5]"
             />
           </div>
-          <Button type="submit" className="w-full rounded-full" disabled={loading}>
-            {loading ? "Adding..." : "Add client"}
+          <Button type="submit" className="w-full rounded-full" disabled={isPending}>
+            {isPending ? "Creating..." : "Add client"}
           </Button>
         </form>
       </DialogContent>
-    </Dialog>
   )
 }

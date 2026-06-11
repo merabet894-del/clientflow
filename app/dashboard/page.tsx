@@ -11,22 +11,24 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { getDashboardOverview } from "@/lib/actions/workspace"
+import { OnboardingChecklist } from "@/components/dashboard/onboarding-checklist-client"
 
 function formatStatus(status: string) {
   switch (status) {
     case "active": return "In progress"
     case "waiting approval": return "Waiting approval"
-    case "client feedback": return "Client feedback"
+    case "client feedback": return "Needs changes"
     case "completed": return "Completed"
+    case "approved": return "Completed"
     default: return status.charAt(0).toUpperCase() + status.slice(1)
   }
 }
 
 function getStatusClass(status: string) {
-  if (status === "completed") return "border-emerald-200 bg-emerald-50 text-emerald-700"
+  if (status === "completed" || status === "approved") return "border-emerald-200 bg-emerald-50 text-emerald-700"
   if (status === "waiting approval") return "border-amber-200 bg-amber-50 text-amber-700"
   if (status === "client feedback") return "border-blue-200 bg-blue-50 text-blue-700"
-  return "border-black/10 bg-white text-black"
+  return "border-black/15 bg-white text-black"
 }
 
 function formatDate(dateStr: string) {
@@ -44,6 +46,15 @@ function formatDate(dateStr: string) {
 export default async function DashboardPage() {
   const overview = await getDashboardOverview()
   const { stats, recentProjects, recentActivity } = overview
+  const statCards = [
+    { label: "Clients", value: stats.activeClients },
+    { label: "Total projects", value: stats.totalProjects },
+    { label: "Open projects", value: stats.openProjects },
+    { label: "Waiting approvals", value: stats.waitingApprovals },
+    { label: "Feedback", value: stats.feedbackCount },
+    { label: "Approvals", value: stats.approvalCount },
+    { label: "Files shared", value: stats.filesShared },
+  ]
 
   return (
     <>
@@ -60,7 +71,7 @@ export default async function DashboardPage() {
           </p>
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row">
           <Link href="/dashboard/clients">
             <Button variant="outline" className="rounded-full bg-white">
               Invite client
@@ -72,37 +83,23 @@ export default async function DashboardPage() {
         </div>
       </header>
 
-      <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Active clients</p>
-            <p className="mt-3 text-3xl font-semibold">{stats.activeClients}</p>
-          </CardContent>
-        </Card>
-        <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Open projects</p>
-            <p className="mt-3 text-3xl font-semibold">{stats.openProjects}</p>
-          </CardContent>
-        </Card>
-        <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Waiting approvals</p>
-            <p className="mt-3 text-3xl font-semibold">{stats.waitingApprovals}</p>
-          </CardContent>
-        </Card>
-        <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Files shared</p>
-            <p className="mt-3 text-3xl font-semibold">{stats.filesShared}</p>
-          </CardContent>
-        </Card>
+      <OnboardingChecklist stats={stats} recentActivity={recentActivity} projects={recentProjects} />
+
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {statCards.map((card) => (
+          <Card key={card.label} className="rounded-2xl border-black/15 bg-white shadow-sm">
+            <CardContent className="p-4 sm:p-5">
+              <p className="text-sm text-muted-foreground">{card.label}</p>
+              <p className="mt-3 text-2xl font-semibold sm:text-3xl">{card.value}</p>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_360px]">
-        <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
+        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
           <CardContent className="p-5">
-            <div className="mb-5 flex items-center justify-between">
+            <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-xl font-semibold">Recent projects</h2>
                 <p className="text-sm text-muted-foreground">
@@ -123,6 +120,7 @@ export default async function DashboardPage() {
                 </p>
               </div>
             ) : (
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -147,7 +145,7 @@ export default async function DashboardPage() {
                         </Link>
                       </TableCell>
                       <TableCell>
-                        {project.clients?.name ?? "—"}
+                        {project.clients?.name ?? "-"}
                       </TableCell>
                       <TableCell>
                         <Badge
@@ -164,11 +162,12 @@ export default async function DashboardPage() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
+        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
           <CardContent className="p-5">
             <h2 className="text-xl font-semibold">Recent activity</h2>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -182,7 +181,7 @@ export default async function DashboardPage() {
             ) : (
               <div className="mt-5 space-y-3">
                 {recentActivity.map((item) => (
-                  <div key={item.id} className="rounded-xl bg-[#f4f4f2] p-4 text-sm">
+                  <div key={item.id} className="rounded-xl bg-[#f4f4f2] p-4 text-sm leading-6">
                     {item.text}
                   </div>
                 ))}

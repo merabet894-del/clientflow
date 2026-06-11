@@ -40,7 +40,7 @@ export default function SettingsPage() {
 
       <div className="mt-8 grid gap-6 xl:grid-cols-[1fr_360px]">
         <div className="space-y-6">
-          <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
+          <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
             <CardContent className="p-5">
               <h2 className="text-xl font-semibold">Agency profile</h2>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -92,7 +92,7 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
+          <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
             <CardContent className="p-5">
               <h2 className="text-xl font-semibold">Portal branding</h2>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -138,7 +138,7 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
+          <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
             <CardContent className="p-5">
               <h2 className="text-xl font-semibold">Notifications</h2>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -157,7 +157,7 @@ export default function SettingsPage() {
                       className={`rounded-full ${
                         item.value === "Enabled"
                           ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                          : "border-black/10 bg-white text-muted-foreground"
+                          : "border-black/15 bg-white text-muted-foreground"
                       }`}
                     >
                       {item.value}
@@ -170,7 +170,7 @@ export default function SettingsPage() {
         </div>
 
         <div className="space-y-6">
-          <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
+          <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
             <CardContent className="p-5">
               <h2 className="text-xl font-semibold">Current plan</h2>
 
@@ -202,7 +202,7 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
+          <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
             <CardContent className="p-5">
               <h2 className="text-xl font-semibold">Workspace health</h2>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -230,7 +230,7 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
+          <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
             <CardContent className="p-5">
               <h2 className="text-xl font-semibold">Danger zone</h2>
               <p className="mt-1 text-sm text-muted-foreground">

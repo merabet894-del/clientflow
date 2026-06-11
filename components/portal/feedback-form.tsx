@@ -1,15 +1,23 @@
 "use client"
 
-import { useActionState } from "react"
+import { useActionState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { submitPortalFeedback } from "@/lib/actions/portal-actions"
 
-export function FeedbackForm({ token, isFinal }: { token: string; isFinal?: boolean }) {
+export function FeedbackForm({ token }: { token: string }) {
+  const router = useRouter()
   const [state, formAction, isPending] = useActionState(
     submitPortalFeedback.bind(null, token),
     null
   )
+
+  useEffect(() => {
+    if (state?.success) {
+      router.refresh()
+    }
+  }, [router, state?.success])
 
   if (state?.success) {
     return (
@@ -20,12 +28,10 @@ export function FeedbackForm({ token, isFinal }: { token: string; isFinal?: bool
   }
 
   return (
-    <form action={formAction}>
-      <h2 className="text-xl font-semibold">Leave feedback</h2>
+    <form action={formAction} className="min-w-0">
+      <h2 className="text-xl font-semibold">Request changes or leave feedback</h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        {isFinal
-          ? "Send any final notes to the agency."
-          : "Tell the agency what should be changed before approval."}
+        Tell the agency what should be changed before approval.
       </p>
 
       <Textarea
@@ -42,7 +48,7 @@ export function FeedbackForm({ token, isFinal }: { token: string; isFinal?: bool
         type="submit"
         disabled={isPending}
         variant="outline"
-        className="mt-4 rounded-full bg-white"
+        className="mt-4 w-full rounded-full bg-white sm:w-auto"
       >
         {isPending ? "Sending..." : "Send feedback"}
       </Button>

@@ -15,6 +15,7 @@ import { getApprovals, getApprovalStats } from "@/lib/actions/approvals"
 function formatStatus(status: string) {
   if (status === "approved") return "Approved"
   if (status === "pending") return "Waiting approval"
+  if (status === "client feedback" || status === "needs changes") return "Needs changes"
   return status
 }
 
@@ -22,7 +23,7 @@ function getStatusClass(status: string) {
   if (status === "approved") return "border-emerald-200 bg-emerald-50 text-emerald-700"
   if (status === "Feedback requested") return "border-blue-200 bg-blue-50 text-blue-700"
   if (status === "Waiting approval" || status === "pending") return "border-amber-200 bg-amber-50 text-amber-700"
-  return "border-black/10 bg-white text-black"
+  return "border-black/15 bg-white text-black"
 }
 
 function formatDate(dateStr: string) {
@@ -74,42 +75,44 @@ export default async function ApprovalsPage() {
             Client approvals
           </h1>
           <p className="mt-2 text-muted-foreground">
-            Track deliverables waiting for client approval and follow up faster.
+            Approval requests are created from project pages after uploading a deliverable.
           </p>
         </div>
 
-        <Button className="rounded-full">New approval request</Button>
+        <Link href="/dashboard/projects">
+          <Button className="rounded-full">Request from project</Button>
+        </Link>
       </header>
 
-      <div className="mt-8 grid gap-4 md:grid-cols-4">
-        <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
-          <CardContent className="p-5">
+      <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
+          <CardContent className="p-4 sm:p-5">
             <p className="text-sm text-muted-foreground">Waiting approval</p>
-            <p className="mt-3 text-3xl font-semibold">{stats.waitingApproval}</p>
+            <p className="mt-3 text-2xl font-semibold sm:text-3xl">{stats.waitingApproval}</p>
           </CardContent>
         </Card>
-        <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
-          <CardContent className="p-5">
+        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
+          <CardContent className="p-4 sm:p-5">
             <p className="text-sm text-muted-foreground">Approved this month</p>
-            <p className="mt-3 text-3xl font-semibold">{stats.approvedThisMonth}</p>
+            <p className="mt-3 text-2xl font-semibold sm:text-3xl">{stats.approvedThisMonth}</p>
           </CardContent>
         </Card>
-        <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
-          <CardContent className="p-5">
+        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
+          <CardContent className="p-4 sm:p-5">
             <p className="text-sm text-muted-foreground">Feedback requested</p>
-            <p className="mt-3 text-3xl font-semibold">{stats.feedbackRequested}</p>
+            <p className="mt-3 text-2xl font-semibold sm:text-3xl">{stats.feedbackRequested}</p>
           </CardContent>
         </Card>
-        <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
-          <CardContent className="p-5">
+        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
+          <CardContent className="p-4 sm:p-5">
             <p className="text-sm text-muted-foreground">Average approval time</p>
-            <p className="mt-3 text-3xl font-semibold">{stats.averageApprovalTime}</p>
+            <p className="mt-3 text-2xl font-semibold sm:text-3xl">{stats.averageApprovalTime}</p>
           </CardContent>
         </Card>
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_360px]">
-        <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
+        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
           <CardContent className="p-5">
             <h2 className="text-xl font-semibold">All approvals</h2>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -117,12 +120,20 @@ export default async function ApprovalsPage() {
             </p>
 
             {approvals.length === 0 ? (
-              <div className="py-12 text-center">
-                <p className="text-muted-foreground">
-                  No approvals yet. Approval responses from client portals will appear here.
+              <div className="py-16 text-center">
+                <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-black/[0.04]">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-black/30"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+                </div>
+                <h3 className="text-lg font-semibold">No approvals yet</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Approval requests are created from project pages after uploading a deliverable.
                 </p>
+                <Link href="/dashboard/projects" className="mt-5 inline-flex">
+                  <Button className="rounded-full">Go to projects</Button>
+                </Link>
               </div>
             ) : (
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -173,12 +184,13 @@ export default async function ApprovalsPage() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             )}
           </CardContent>
         </Card>
 
         <div className="space-y-6">
-          <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
+          <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
             <CardContent className="p-5">
               <h2 className="text-xl font-semibold">Approval workflow</h2>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -201,7 +213,7 @@ export default async function ApprovalsPage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
+          <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
             <CardContent className="p-5">
               <h2 className="text-xl font-semibold">Needs follow-up</h2>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -215,8 +227,9 @@ export default async function ApprovalsPage() {
               ) : (
                 <div className="mt-5 space-y-3">
                   {pendingApprovals.slice(0, 5).map((item) => (
-                    <div key={item.id} className="rounded-xl bg-[#f4f4f2] p-4 text-sm">
-                      {item.projects?.name ?? "A project"} — {item.title} not yet approved
+                    <div key={item.id} className="rounded-xl bg-[#f4f4f2] p-4 text-sm leading-6">
+                      <span className="font-medium">{item.projects?.name ?? "A project"}</span>
+                      <span className="text-muted-foreground"> - {item.title} not yet approved</span>
                     </div>
                   ))}
                 </div>

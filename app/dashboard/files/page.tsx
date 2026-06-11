@@ -21,7 +21,7 @@ function getTypeBadge(type: string | null) {
   if (type === "PDF") return "border-rose-200 bg-rose-50 text-rose-700"
   if (type === "Design") return "border-violet-200 bg-violet-50 text-violet-700"
   if (type === "Document") return "border-orange-200 bg-orange-50 text-orange-700"
-  return "border-black/10 bg-white text-black"
+  return "border-black/15 bg-white text-black"
 }
 
 function formatDate(dateStr: string) {
@@ -78,35 +78,35 @@ export default async function FilesPage() {
         <UploadFileDialog projects={projects} clients={clients} />
       </header>
 
-      <div className="mt-8 grid gap-4 md:grid-cols-4">
-        <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
-          <CardContent className="p-5">
+      <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
+          <CardContent className="p-4 sm:p-5">
             <p className="text-sm text-muted-foreground">Total files</p>
-            <p className="mt-3 text-3xl font-semibold">{files.length}</p>
+            <p className="mt-3 text-2xl font-semibold sm:text-3xl">{files.length}</p>
           </CardContent>
         </Card>
-        <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
-          <CardContent className="p-5">
+        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
+          <CardContent className="p-4 sm:p-5">
             <p className="text-sm text-muted-foreground">Shared this month</p>
-            <p className="mt-3 text-3xl font-semibold">{sharedThisMonth}</p>
+            <p className="mt-3 text-2xl font-semibold sm:text-3xl">{sharedThisMonth}</p>
           </CardContent>
         </Card>
-        <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
-          <CardContent className="p-5">
+        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
+          <CardContent className="p-4 sm:p-5">
             <p className="text-sm text-muted-foreground">Pending review</p>
-            <p className="mt-3 text-3xl font-semibold">0</p>
+            <p className="mt-3 text-2xl font-semibold sm:text-3xl">0</p>
           </CardContent>
         </Card>
-        <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
-          <CardContent className="p-5">
+        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
+          <CardContent className="p-4 sm:p-5">
             <p className="text-sm text-muted-foreground">Storage used</p>
-            <p className="mt-3 text-3xl font-semibold">{files.length} files</p>
+            <p className="mt-3 text-2xl font-semibold sm:text-3xl">{files.length} files</p>
           </CardContent>
         </Card>
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_360px]">
-        <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
+        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
           <CardContent className="p-5">
             <h2 className="text-xl font-semibold">All files</h2>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -114,12 +114,20 @@ export default async function FilesPage() {
             </p>
 
             {files.length === 0 ? (
-              <div className="py-12 text-center">
-                <p className="text-muted-foreground">
-                  No files yet. Upload a file to share with your team and clients.
+              <div className="py-16 text-center">
+                <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-black/[0.04]">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-black/30"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                </div>
+                <h3 className="text-lg font-semibold">No files shared yet</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Upload a file to share a deliverable with your client.
                 </p>
+                <div className="mt-5 inline-flex">
+                  <UploadFileDialog projects={projects} clients={clients} />
+                </div>
               </div>
             ) : (
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -137,8 +145,8 @@ export default async function FilesPage() {
                   {files.map((file) => (
                     <TableRow key={file.id}>
                       <TableCell className="font-medium">{file.name}</TableCell>
-                      <TableCell>{file.clients?.name ?? "—"}</TableCell>
-                      <TableCell>{file.projects?.name ?? "—"}</TableCell>
+                      <TableCell>{file.clients?.name ?? "Unassigned"}</TableCell>
+                      <TableCell>{file.projects?.name ?? "Unassigned"}</TableCell>
                       <TableCell>
                         <Badge
                           variant="outline"
@@ -147,7 +155,7 @@ export default async function FilesPage() {
                           {file.type ?? "Other"}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{file.size ?? "—"}</TableCell>
+                      <TableCell className="text-muted-foreground">{file.size ?? "-"}</TableCell>
                       <TableCell className="text-muted-foreground">
                         {formatDate(file.created_at)}
                       </TableCell>
@@ -158,12 +166,13 @@ export default async function FilesPage() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             )}
           </CardContent>
         </Card>
 
         <div className="space-y-6">
-          <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
+          <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
             <CardContent className="p-5">
               <h2 className="text-xl font-semibold">File categories</h2>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -190,7 +199,7 @@ export default async function FilesPage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
+          <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
             <CardContent className="p-5">
               <h2 className="text-xl font-semibold">Recent uploads</h2>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -204,7 +213,7 @@ export default async function FilesPage() {
               ) : (
                 <div className="mt-5 space-y-3">
                   {recentUploads.map((file) => (
-                    <div key={file.id} className="rounded-xl bg-[#f4f4f2] p-4 text-sm">
+                    <div key={file.id} className="rounded-xl bg-[#f4f4f2] p-4 text-sm leading-6">
                       {file.name} uploaded {formatDate(file.created_at)}
                     </div>
                   ))}

@@ -18,15 +18,16 @@ import { notFound } from "next/navigation"
 function getStatusClass(status: string) {
   if (status === "Waiting approval") return "border-amber-200 bg-amber-50 text-amber-700"
   if (status === "Client feedback") return "border-blue-200 bg-blue-50 text-blue-700"
-  return "border-black/10 bg-white text-black"
+  return "border-black/15 bg-white text-black"
 }
 
 function formatStatus(status: string) {
   switch (status) {
     case "active": return "In progress"
     case "waiting approval": return "Waiting approval"
-    case "client feedback": return "Client feedback"
+    case "client feedback": return "Needs changes"
     case "completed": return "Completed"
+    case "approved": return "Completed"
     default: return status.charAt(0).toUpperCase() + status.slice(1)
   }
 }
@@ -35,7 +36,7 @@ function getProjectStatusClass(status: string) {
   if (status === "completed") return "border-emerald-200 bg-emerald-50 text-emerald-700"
   if (status === "waiting approval") return "border-amber-200 bg-amber-50 text-amber-700"
   if (status === "client feedback") return "border-blue-200 bg-blue-50 text-blue-700"
-  return "border-black/10 bg-white text-black"
+  return "border-black/15 bg-white text-black"
 }
 
 function formatDate(dateStr: string) {
@@ -136,28 +137,28 @@ export default async function ClientDetailPage({
       </header>
 
       <div className="mt-8 grid gap-4 md:grid-cols-4">
-        <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
+        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
           <CardContent className="p-5">
             <p className="text-sm text-muted-foreground">Active projects</p>
             <p className="mt-3 text-3xl font-semibold">{activeProjects}</p>
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
+        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
           <CardContent className="p-5">
             <p className="text-sm text-muted-foreground">Waiting approvals</p>
             <p className="mt-3 text-3xl font-semibold">{waitingApprovals}</p>
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
+        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
           <CardContent className="p-5">
             <p className="text-sm text-muted-foreground">Shared files</p>
             <p className="mt-3 text-3xl font-semibold">{totalFiles}</p>
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
+        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
           <CardContent className="p-5">
             <p className="text-sm text-muted-foreground">Last activity</p>
             <p className="mt-3 text-3xl font-semibold">
@@ -168,7 +169,7 @@ export default async function ClientDetailPage({
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_360px]">
-        <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
+        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
           <CardContent className="p-5">
             <div className="mb-5 flex items-center justify-between">
               <div>
@@ -233,7 +234,7 @@ export default async function ClientDetailPage({
         </Card>
 
         <div className="space-y-6">
-          <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
+          <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
             <CardContent className="p-5">
               <h2 className="text-xl font-semibold">Client info</h2>
 
@@ -260,7 +261,7 @@ export default async function ClientDetailPage({
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl border-black/10 bg-white shadow-sm">
+          <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
             <CardContent className="p-5">
               <h2 className="text-xl font-semibold">Portal access</h2>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
@@ -276,7 +277,7 @@ export default async function ClientDetailPage({
         </div>
       </div>
 
-      <Card className="mt-6 rounded-2xl border-black/10 bg-white shadow-sm">
+      <Card className="mt-6 rounded-2xl border-black/15 bg-white shadow-sm">
         <CardContent className="p-5">
           <h2 className="text-xl font-semibold">Recent activity</h2>
           <p className="mt-1 text-sm text-muted-foreground">

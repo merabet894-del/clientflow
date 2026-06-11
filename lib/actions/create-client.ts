@@ -15,16 +15,28 @@ export async function createClient(formData: FormData) {
 
   if (!name) return { error: "Client name is required" }
 
-  const { error } = await supabase.from("clients").insert({
-    agency_id: agency.id,
-    name,
-    email: email || null,
-    company: company || null,
-    status: "active",
-  })
+  const { data, error } = await supabase
+    .from("clients")
+    .insert({
+      agency_id: agency.id,
+      name,
+      email: email || null,
+      company: company || null,
+      status: "active",
+    })
+    .select("id")
+    .single()
 
   if (error) return { error: error.message }
+  if (!data?.id) return { error: "Client was not created. Please try again." }
 
   revalidatePath("/dashboard/clients")
-  return { success: true }
+  return { success: true, clientId: data.id }
+}
+
+export async function createClientFormAction(
+  _previousState: { success?: boolean; clientId?: string; error?: string } | null,
+  formData: FormData
+) {
+  return createClient(formData)
 }

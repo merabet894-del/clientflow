@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { ClientFlowLogo } from "@/components/brand/clientflow-logo"
+import { createClient } from "@/lib/supabase/client"
 
 const NAV_LINKS = [
   { label: "Features",     href: "#platform" },
@@ -19,6 +20,14 @@ const NAV_STYLE = {
 
 export function MobileNav() {
   const [open, setOpen] = useState(false)
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsLoggedIn(!!session)
+    })
+  }, [])
 
   const close = () => setOpen(false)
 
@@ -47,20 +56,32 @@ export function MobileNav() {
           </div>
 
           <div className="hidden md:flex items-center gap-2">
-            <a
-              href="/auth"
-              className="text-[11px] px-4 py-2 rounded-full border border-black/10 text-black/60 hover:text-black hover:border-black/20 hover:bg-black/[0.03] transition-all duration-200 tracking-wide"
-              style={{ fontFamily: "system-ui, -apple-system, sans-serif" }}
-            >
-              Sign in
-            </a>
-            <a
-              href="/auth"
-              className="text-[11px] px-4 py-2 rounded-full bg-[#111] text-white hover:bg-[#333] transition-all duration-200 tracking-wide"
-              style={{ fontFamily: "system-ui, -apple-system, sans-serif" }}
-            >
-              START FREE
-            </a>
+            {isLoggedIn ? (
+              <a
+                href="/dashboard"
+                className="text-[11px] px-4 py-2 rounded-full bg-[#111] text-white hover:bg-[#333] transition-all duration-200 tracking-wide"
+                style={{ fontFamily: "system-ui, -apple-system, sans-serif" }}
+              >
+                Go dashboard
+              </a>
+            ) : (
+              <>
+                <a
+                  href="/auth"
+                  className="text-[11px] px-4 py-2 rounded-full border border-black/10 text-black/60 hover:text-black hover:border-black/20 hover:bg-black/[0.03] transition-all duration-200 tracking-wide"
+                  style={{ fontFamily: "system-ui, -apple-system, sans-serif" }}
+                >
+                  Sign in
+                </a>
+                <a
+                  href="/auth"
+                  className="text-[11px] px-4 py-2 rounded-full bg-[#111] text-white hover:bg-[#333] transition-all duration-200 tracking-wide"
+                  style={{ fontFamily: "system-ui, -apple-system, sans-serif" }}
+                >
+                  START FREE
+                </a>
+              </>
+            )}
           </div>
 
           <button
@@ -113,22 +134,35 @@ export function MobileNav() {
               </a>
             ))}
             <div className="mt-2 px-2 pb-2 flex flex-col gap-2">
-              <a
-                href="/auth"
-                onClick={close}
-                className="block w-full text-center text-[11px] px-4 py-2.5 rounded-full border border-black/10 text-black/60 hover:text-black hover:border-black/20 hover:bg-black/[0.03] transition-all duration-200 tracking-wide"
-                style={{ fontFamily: "system-ui, -apple-system, sans-serif" }}
-              >
-                Sign in
-              </a>
-              <a
-                href="/auth"
-                onClick={close}
-                className="block w-full text-center text-[11px] px-4 py-2.5 rounded-full bg-[#111] text-white hover:bg-[#333] transition-all duration-200 tracking-wide"
-                style={{ fontFamily: "system-ui, -apple-system, sans-serif" }}
-              >
-                START FREE
-              </a>
+              {isLoggedIn ? (
+                <a
+                  href="/dashboard"
+                  onClick={close}
+                  className="block w-full text-center text-[11px] px-4 py-2.5 rounded-full bg-[#111] text-white hover:bg-[#333] transition-all duration-200 tracking-wide"
+                  style={{ fontFamily: "system-ui, -apple-system, sans-serif" }}
+                >
+                  Go dashboard
+                </a>
+              ) : (
+                <>
+                  <a
+                    href="/auth"
+                    onClick={close}
+                    className="block w-full text-center text-[11px] px-4 py-2.5 rounded-full border border-black/10 text-black/60 hover:text-black hover:border-black/20 hover:bg-black/[0.03] transition-all duration-200 tracking-wide"
+                    style={{ fontFamily: "system-ui, -apple-system, sans-serif" }}
+                  >
+                    Sign in
+                  </a>
+                  <a
+                    href="/auth"
+                    onClick={close}
+                    className="block w-full text-center text-[11px] px-4 py-2.5 rounded-full bg-[#111] text-white hover:bg-[#333] transition-all duration-200 tracking-wide"
+                    style={{ fontFamily: "system-ui, -apple-system, sans-serif" }}
+                  >
+                    START FREE
+                  </a>
+                </>
+              )}
             </div>
           </div>
         </div>

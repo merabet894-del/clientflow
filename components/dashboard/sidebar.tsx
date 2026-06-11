@@ -1,32 +1,34 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
+import { usePathname } from "next/navigation"
+import { LayoutDashboard, Users, FolderKanban, BadgeCheck, Files, Settings, ChevronLeft, ChevronRight } from "lucide-react"
 import { ClientFlowLogo } from "@/components/brand/clientflow-logo"
 
 const navItems = [
-  { label: "Overview", href: "/dashboard" },
-  { label: "Clients", href: "/dashboard/clients" },
-  { label: "Projects", href: "/dashboard/projects" },
-  { label: "Approvals", href: "/dashboard/approvals" },
-  { label: "Files", href: "/dashboard/files" },
-  { label: "Settings", href: "/dashboard/settings" },
+  { label: "Overview", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Clients", href: "/dashboard/clients", icon: Users },
+  { label: "Projects", href: "/dashboard/projects", icon: FolderKanban },
+  { label: "Approvals", href: "/dashboard/approvals", icon: BadgeCheck },
+  { label: "Files", href: "/dashboard/files", icon: Files },
+  { label: "Settings", href: "/dashboard/settings", icon: Settings },
 ]
 
 export function Sidebar() {
   const pathname = usePathname()
-  const router = useRouter()
+  const [collapsed, setCollapsed] = useState(false)
+  const [mounted, setMounted] = useState(false)
 
-  async function handleSignOut() {
-    try {
-      const supabase = createClient()
-      await supabase.auth.signOut()
-    } catch {
-      // Supabase may not be configured yet
-    }
-    router.push("/auth")
-  }
+  useEffect(() => {
+    setMounted(true)
+    const saved = localStorage.getItem("sidebar-collapsed")
+    if (saved === "true") setCollapsed(true)
+  }, [])
+
+  useEffect(() => {
+    if (mounted) localStorage.setItem("sidebar-collapsed", String(collapsed))
+  }, [collapsed, mounted])
 
   function isActive(href: string) {
     if (href === "#") return false
@@ -35,45 +37,64 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="hidden w-72 shrink-0 border-r bg-white/70 px-5 py-6 lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col lg:overflow-y-auto">
-      <div className="flex items-center gap-2 px-1">
-        <ClientFlowLogo variant="compact" height={28} />
+    <aside
+      className={`hidden shrink-0 border-r border-black/[0.10] bg-white/70 py-6 transition-all duration-300 ease-in-out lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col lg:overflow-y-auto ${
+        collapsed ? "w-20 px-3" : "w-72 px-5"
+      }`}
+    >
+      <div className={`flex items-center ${collapsed ? "flex-col gap-3" : "justify-between gap-2 px-1"}`}>
+        {collapsed ? (
+          <>
+            <ClientFlowLogo variant="icon" height={28} />
+            <button
+              type="button"
+              onClick={() => setCollapsed(false)}
+              title="Expand sidebar"
+              className="flex size-7 items-center justify-center rounded-lg text-black/30 transition-colors hover:bg-[#f1f1ef] hover:text-black"
+            >
+              <ChevronRight className="size-4" />
+            </button>
+          </>
+        ) : (
+          <>
+            <ClientFlowLogo variant="compact" height={28} />
+            <button
+              type="button"
+              onClick={() => setCollapsed(true)}
+              title="Collapse sidebar"
+              className="flex size-7 items-center justify-center rounded-lg text-black/30 transition-colors hover:bg-[#f1f1ef] hover:text-black"
+            >
+              <ChevronLeft className="size-4" />
+            </button>
+          </>
+        )}
       </div>
 
-      <nav className="mt-10 space-y-1 text-sm">
-        {navItems.map((item) => (
-          <Link
-            key={item.label}
-            href={item.href}
-            className={`block rounded-xl px-4 py-3 ${
-              isActive(item.href)
-                ? "bg-black text-white"
-                : "text-muted-foreground hover:bg-[#f1f1ef] hover:text-black"
-            }`}
-          >
-            {item.label}
-          </Link>
-        ))}
+      <nav className={`mt-10 space-y-1 text-sm ${collapsed ? "flex flex-col items-center" : ""}`}>
+        {navItems.map((item) => {
+          const Icon = item.icon
+          const active = isActive(item.href)
+          return (
+            <Link
+              key={item.label}
+              href={item.href}
+              title={collapsed ? item.label : undefined}
+              className={`flex items-center rounded-xl transition-colors ${
+                collapsed
+                  ? "justify-center p-3"
+                  : "gap-3 px-4 py-3"
+              } ${
+                active
+                  ? "bg-black text-white"
+                  : "text-muted-foreground hover:bg-[#f1f1ef] hover:text-black"
+              }`}
+            >
+              <Icon className="size-[18px] shrink-0" />
+              {!collapsed && <span>{item.label}</span>}
+            </Link>
+          )
+        })}
       </nav>
-
-      <div className="mt-auto border-t pt-4">
-        <div className="flex items-center gap-2 text-sm">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#f1f1ef] text-xs font-medium">
-            CA
-          </div>
-          <div className="flex-1 truncate">
-            <p className="font-medium">ClientFlow Agency</p>
-            <p className="text-xs text-muted-foreground">hello@clientflow.co</p>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={handleSignOut}
-          className="mt-3 w-full rounded-xl px-4 py-2.5 text-left text-sm text-muted-foreground hover:bg-[#f1f1ef] hover:text-black"
-        >
-          Sign out
-        </button>
-      </div>
     </aside>
   )
 }

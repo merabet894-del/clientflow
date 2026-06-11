@@ -12,8 +12,6 @@ export async function createProject(formData: FormData) {
   const name = formData.get("name") as string
   const client_id = formData.get("client_id") as string
   const description = formData.get("description") as string
-  const status = formData.get("status") as string
-  const progress = parseInt(formData.get("progress") as string, 10)
 
   if (!name) return { error: "Project name is required" }
 
@@ -22,8 +20,8 @@ export async function createProject(formData: FormData) {
     client_id: client_id && client_id !== "none" ? client_id : null,
     name,
     description: description || null,
-    status: status || "active",
-    progress: isNaN(progress) ? 0 : Math.min(Math.max(progress, 0), 100),
+    status: "active",
+    progress: 10,
   })
 
   if (error) return { error: error.message }
