@@ -3,27 +3,22 @@
 import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createClient } from "@/lib/supabase/client"
+import { GradientBackground } from "@/components/auth/shader-gradient"
+import { ClientFlowLogo } from "@/components/brand/clientflow-logo"
 
-export default function AuthPage() {
-  return (
-    <Suspense fallback={null}>
-      <AuthContent />
-    </Suspense>
-  )
-}
-
-function AuthContent() {
+function AuthForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [tab, setTab] = useState<"signin" | "signup">("signin")
+  const [isLogin, setIsLogin] = useState(true)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(searchParams.get("error") === "callback_failed"
-    ? "Email confirmation failed. Please try signing in again."
-    : "")
+  const [error, setError] = useState(
+    searchParams.get("error") === "callback_failed"
+      ? "Email confirmation failed. Please try signing in again."
+      : ""
+  )
   const [success, setSuccess] = useState("")
 
   useEffect(() => {
@@ -34,6 +29,12 @@ function AuthContent() {
       }
     })
   }, [router])
+
+  function toggleForm() {
+    setIsLogin(!isLogin)
+    setError("")
+    setSuccess("")
+  }
 
   async function handleSignIn(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -78,7 +79,7 @@ function AuthContent() {
         },
       })
       if (error) throw error
-      setSuccess("Account created. Check your email to confirm your account.")
+      setSuccess("Check your email to confirm your account.")
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong")
     } finally {
@@ -87,132 +88,194 @@ function AuthContent() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#f7f7f5] p-4">
-      <Card className="w-full max-w-md rounded-2xl border-black/10 bg-white shadow-sm">
-        <CardContent className="p-6">
-          <div className="mb-6 flex flex-col items-center">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-black text-lg font-semibold text-white">
-              C
-            </div>
-            <h1 className="mt-4 text-2xl font-semibold tracking-tight">
-              Sign in to ClientFlow
+    <div className="min-h-screen bg-[#F5F4F0] flex overflow-hidden">
+      {/* Left panel — Form */}
+      <div
+        className={`w-full lg:w-1/2 flex flex-col items-center justify-center p-8 relative z-10 transition-all duration-700 ease-in-out min-h-screen ${
+          isLogin ? "lg:translate-x-full" : "lg:translate-x-0"
+        }`}
+      >
+        <div className="absolute top-8 left-8 z-20">
+          <ClientFlowLogo variant="compact" height={24} />
+        </div>
+        <div className="w-full max-w-sm space-y-8">
+          {/* Brand */}
+          <div className="text-center space-y-2">
+            <h1 className="text-2xl font-semibold tracking-tight text-[#050505]">
+              {isLogin ? "Welcome back" : "Create your ClientFlow account"}
             </h1>
-            <p className="mt-2 text-center text-sm text-muted-foreground">
-              Manage clients, projects, feedback, files, and approvals from one
-              workspace.
+            <p className="text-sm text-black/50">
+              {isLogin
+                ? "Sign in to manage your clients, projects, and approvals."
+                : "Start managing clients, projects, files, feedback, and approvals in one clean portal."}
             </p>
           </div>
 
-          <div className="mb-6 flex rounded-xl bg-[#f1f1ef] p-1">
-            <button
-              type="button"
-              onClick={() => { setTab("signin"); setError(""); setSuccess("") }}
-              className={`flex-1 rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
-                tab === "signin" ? "bg-white text-black shadow-sm" : "text-muted-foreground"
-              }`}
-            >
-              Sign in
-            </button>
-            <button
-              type="button"
-              onClick={() => { setTab("signup"); setError(""); setSuccess("") }}
-              className={`flex-1 rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
-                tab === "signup" ? "bg-white text-black shadow-sm" : "text-muted-foreground"
-              }`}
-            >
-              Create account
-            </button>
-          </div>
-
+          {/* Error / Success messages */}
           {error && (
-            <div className="mb-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            <div className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700 border border-rose-200">
               {error}
             </div>
           )}
-
           {success && (
-            <div className="mb-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            <div className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700 border border-emerald-200">
               {success}
             </div>
           )}
 
-          {tab === "signin" ? (
-            <form onSubmit={handleSignIn} className="space-y-4">
+          {/* Form */}
+          {isLogin ? (
+            <form onSubmit={handleSignIn} className="space-y-5">
               <div className="space-y-2">
-                <Label htmlFor="signin-email">Email</Label>
+                <Label htmlFor="login-email" className="text-xs font-medium text-black/60 uppercase tracking-wider">
+                  Work email
+                </Label>
                 <Input
-                  id="signin-email"
+                  id="login-email"
                   name="email"
                   type="email"
                   placeholder="hello@agency.com"
                   required
-                  className="rounded-xl bg-[#f7f7f5]"
+                  className="h-11 rounded-xl border-black/10 bg-white text-[#111] placeholder:text-black/30 focus-visible:border-black/30"
                 />
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="signin-password">Password</Label>
-                  <button
-                    type="button"
-                    className="text-xs text-muted-foreground hover:text-black"
-                  >
-                    Forgot password?
-                  </button>
+                  <Label htmlFor="login-password" className="text-xs font-medium text-black/60 uppercase tracking-wider">
+                    Password
+                  </Label>
                 </div>
                 <Input
-                  id="signin-password"
+                  id="login-password"
                   name="password"
                   type="password"
                   placeholder="••••••••"
                   required
-                  className="rounded-xl bg-[#f7f7f5]"
+                  className="h-11 rounded-xl border-black/10 bg-white text-[#111] placeholder:text-black/30 focus-visible:border-black/30"
                 />
               </div>
-              <Button type="submit" className="w-full rounded-full" disabled={loading}>
+              <Button
+                type="submit"
+                className="w-full h-11 rounded-full bg-[#111] text-white hover:bg-[#333] text-sm font-medium tracking-wider"
+                disabled={loading}
+              >
                 {loading ? "Signing in..." : "Sign in"}
               </Button>
             </form>
           ) : (
-            <form onSubmit={handleSignUp} className="space-y-4">
+            <form onSubmit={handleSignUp} className="space-y-5">
               <div className="space-y-2">
-                <Label htmlFor="signup-name">Agency name</Label>
-                <Input
-                  id="signup-name"
-                  name="name"
-                  placeholder="My Agency"
-                  required
-                  className="rounded-xl bg-[#f7f7f5]"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="signup-email">Email</Label>
+                <Label htmlFor="signup-email" className="text-xs font-medium text-black/60 uppercase tracking-wider">
+                  Work email
+                </Label>
                 <Input
                   id="signup-email"
                   name="email"
                   type="email"
                   placeholder="hello@agency.com"
                   required
-                  className="rounded-xl bg-[#f7f7f5]"
+                  className="h-11 rounded-xl border-black/10 bg-white text-[#111] placeholder:text-black/30 focus-visible:border-black/30"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="signup-password">Password</Label>
+                <Label htmlFor="signup-password" className="text-xs font-medium text-black/60 uppercase tracking-wider">
+                  Password
+                </Label>
                 <Input
                   id="signup-password"
                   name="password"
                   type="password"
                   placeholder="••••••••"
                   required
-                  className="rounded-xl bg-[#f7f7f5]"
+                  className="h-11 rounded-xl border-black/10 bg-white text-[#111] placeholder:text-black/30 focus-visible:border-black/30"
                 />
               </div>
-              <Button type="submit" className="w-full rounded-full" disabled={loading}>
-                {loading ? "Creating account..." : "Create account"}
+              <Button
+                type="submit"
+                className="w-full h-11 rounded-full bg-[#111] text-white hover:bg-[#333] text-sm font-medium tracking-wider"
+                disabled={loading}
+              >
+                {loading ? "Creating account..." : "Start free"}
               </Button>
             </form>
           )}
-        </CardContent>
-      </Card>
-    </main>
+
+          {/* Toggle */}
+          <p className="text-center text-sm text-black/50">
+            {isLogin ? (
+              <>
+                New to ClientFlow?{" "}
+                <button
+                  type="button"
+                  onClick={toggleForm}
+                  className="text-[#111] underline underline-offset-4 hover:text-black/70 transition-colors font-medium"
+                >
+                  Create an account
+                </button>
+              </>
+            ) : (
+              <>
+                Already have an account?{" "}
+                <button
+                  type="button"
+                  onClick={toggleForm}
+                  className="text-[#111] underline underline-offset-4 hover:text-black/70 transition-colors font-medium"
+                >
+                  Sign in
+                </button>
+              </>
+            )}
+          </p>
+
+          {/* Legal */}
+          {!isLogin && (
+            <p className="text-center text-xs text-black/40">
+              By creating an account, you agree to the{" "}
+              <a href="/terms" className="underline underline-offset-2 hover:text-black/70">Terms</a>{" "}
+              and{" "}
+              <a href="/privacy" className="underline underline-offset-2 hover:text-black/70">Privacy Policy</a>.
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Right panel — Shader Gradient (exact copy from shader-gradient-component) */}
+      <div
+        className={`hidden lg:flex lg:w-1/2 relative overflow-hidden transition-all duration-700 ease-in-out items-center justify-center min-h-screen ${
+          isLogin ? "lg:-translate-x-full" : "lg:translate-x-0"
+        }`}
+      >
+        <GradientBackground />
+        <div className="absolute inset-0 pointer-events-none bg-black/20" />
+        <div className="absolute inset-0 z-10 flex items-center justify-center px-8">
+          <div className="max-w-sm text-center">
+            <h2 className="text-2xl md:text-3xl font-light text-white/90 tracking-tight mb-3">
+              Client portals, simplified.
+            </h2>
+            <p className="text-sm text-white/60 leading-relaxed mb-6">
+              Share projects, files, feedback, and approvals through one clean portal.
+            </p>
+            <div className="flex justify-center gap-2 flex-wrap">
+              {["Projects", "Files", "Approvals"].map((badge) => (
+                <span
+                  key={badge}
+                  className="px-3 py-1.5 rounded-full text-[11px] font-medium tracking-wide text-white/70 bg-white/10 border border-white/15"
+                >
+                  {badge}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function AuthPage() {
+  return (
+    <Suspense fallback={null}>
+      <AuthForm />
+    </Suspense>
   )
 }

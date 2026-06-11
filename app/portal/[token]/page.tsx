@@ -6,6 +6,7 @@ import { getProjectByPortalToken, getPortalProjectFiles } from "@/lib/actions/po
 import { FeedbackForm } from "@/components/portal/feedback-form"
 import { ApprovalButton } from "@/components/portal/approval-button"
 import { StatusCardApprove } from "@/components/portal/status-card-approve"
+import { ClientFlowLogo } from "@/components/brand/clientflow-logo"
 
 function formatStatus(status: string) {
   switch (status) {
@@ -60,10 +61,7 @@ export default async function ClientPortalPage({
       <main className="min-h-screen bg-[#f7f7f5] text-[#111111]">
         <header className="mx-auto flex max-w-6xl items-center justify-between px-5 py-6">
           <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-black text-sm font-semibold text-white">
-              C
-            </div>
-            <span className="text-lg font-semibold tracking-tight">ClientFlow</span>
+            <ClientFlowLogo variant="compact" height={28} />
           </div>
         </header>
 
@@ -87,17 +85,14 @@ export default async function ClientPortalPage({
   return (
     <main className="min-h-screen bg-[#f7f7f5] text-[#111111]">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-5 py-6">
-        <div className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-black text-sm font-semibold text-white">
-            C
+          <div className="flex items-center gap-2">
+            <ClientFlowLogo variant="compact" height={28} />
           </div>
-          <span className="text-lg font-semibold tracking-tight">ClientFlow</span>
-        </div>
 
-        <Badge variant="outline" className="rounded-full bg-white">
-          Client portal
-        </Badge>
-      </header>
+          <Badge variant="outline" className="rounded-full bg-white">
+            Client portal
+          </Badge>
+        </header>
 
       <section className="mx-auto max-w-6xl px-5 py-10">
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">

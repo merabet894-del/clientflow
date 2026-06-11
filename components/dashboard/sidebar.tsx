@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
+import { ClientFlowLogo } from "@/components/brand/clientflow-logo"
 
 const navItems = [
   { label: "Overview", href: "/dashboard" },
@@ -35,11 +36,8 @@ export function Sidebar() {
 
   return (
     <aside className="hidden w-72 shrink-0 border-r bg-white/70 px-5 py-6 lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col lg:overflow-y-auto">
-      <div className="flex items-center gap-2">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-black text-sm font-semibold text-white">
-          C
-        </div>
-        <span className="text-lg font-semibold tracking-tight">ClientFlow</span>
+      <div className="flex items-center gap-2 px-1">
+        <ClientFlowLogo variant="compact" height={28} />
       </div>
 
       <nav className="mt-10 space-y-1 text-sm">
