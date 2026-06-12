@@ -20,6 +20,7 @@ function AuthForm() {
       : ""
   )
   const [success, setSuccess] = useState("")
+  const planInterest = searchParams.get("plan") || null
 
   useEffect(() => {
     const supabase = createClient()
@@ -75,6 +76,7 @@ function AuthForm() {
         email,
         password,
         options: {
+          data: planInterest ? { plan_interest: planInterest } : undefined,
           emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       })

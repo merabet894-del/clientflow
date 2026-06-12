@@ -32,11 +32,13 @@ export function RequestApprovalButton({
     setSuccess(false)
     const result = await requestApproval(projectId)
     if (result.success) {
+      const successMessage = result.message ?? "Approval request sent. The client can now review it in the portal."
       setSuccess(true)
-      setMessage(result.message ?? "Approval request sent. The client can now review it in the portal.")
+      setMessage(successMessage)
       setTimeout(() => router.refresh(), 500)
     } else {
-      setError(result.error ?? "Something went wrong")
+      const errorMessage = result.error ?? "Something went wrong"
+      setError(errorMessage)
     }
     setLoading(false)
   }

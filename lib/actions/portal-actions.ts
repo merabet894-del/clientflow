@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { createClient as createSupabaseClient } from "@/lib/supabase/server"
+import { createClientNotification } from "@/lib/actions/notifications"
 
 function isCompletedStatus(status: string) {
   return status === "completed" || status === "approved"
@@ -21,7 +22,7 @@ export async function submitPortalFeedback(token: string, _prev: unknown, formDa
 
   const { data: rawProject, error: projectError } = await supabase
     .from("projects")
-    .select("id, name, status, clients(name)")
+    .select("id, agency_id, client_id, name, status, clients(name)")
     .eq("portal_token", token)
     .single()
 
@@ -29,7 +30,14 @@ export async function submitPortalFeedback(token: string, _prev: unknown, formDa
     return { success: false, message: "Project not found." }
   }
 
-  const project = rawProject as unknown as { id: string; name: string; status: string; clients: { name: string } | null }
+  const project = rawProject as unknown as {
+    id: string
+    agency_id: string
+    client_id: string | null
+    name: string
+    status: string
+    clients: { name: string } | null
+  }
 
   if (isCompletedStatus(project.status)) {
     return { success: false, message: "This project is already completed." }
@@ -55,6 +63,16 @@ export async function submitPortalFeedback(token: string, _prev: unknown, formDa
     .update({ status: "client feedback", progress: 70 })
     .eq("id", project.id)
 
+  await createClientNotification({
+    agencyId: project.agency_id,
+    projectId: project.id,
+    clientId: project.client_id,
+    type: "feedback",
+    title: "Feedback received",
+    message: `${project.clients?.name ?? "Client"} left feedback on ${project.name}`,
+    targetHref: `/dashboard/projects/${project.id}?tab=feedback`,
+  })
+
   revalidatePath(`/portal/${token}`)
   revalidatePath("/dashboard")
   revalidatePath(`/dashboard/projects/${project.id}`)
@@ -67,7 +85,7 @@ export async function approvePortalProject(token: string, _prev: unknown, _formD
 
   const { data: rawProject, error: projectError } = await supabase
     .from("projects")
-    .select("id, name, status")
+    .select("id, agency_id, client_id, name, status")
     .eq("portal_token", token)
     .single()
 
@@ -75,7 +93,13 @@ export async function approvePortalProject(token: string, _prev: unknown, _formD
     return { success: false, message: "Project not found." }
   }
 
-  const project = rawProject as { id: string; name: string; status: string }
+  const project = rawProject as {
+    id: string
+    agency_id: string
+    client_id: string | null
+    name: string
+    status: string
+  }
 
   if (isCompletedStatus(project.status)) {
     return { success: false, message: "This project is already completed." }
@@ -125,6 +149,16 @@ export async function approvePortalProject(token: string, _prev: unknown, _formD
   if (updateError) {
     return { success: false, message: "Approval recorded but status update failed." }
   }
+
+  await createClientNotification({
+    agencyId: project.agency_id,
+    projectId: project.id,
+    clientId: project.client_id,
+    type: "approval",
+    title: "Approval completed",
+    message: `${project.name} was approved by the client`,
+    targetHref: `/dashboard/projects/${project.id}?tab=approvals`,
+  })
 
   revalidatePath(`/portal/${token}`)
   revalidatePath("/dashboard")

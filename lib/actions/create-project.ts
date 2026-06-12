@@ -3,12 +3,20 @@
 import { createClient as createSupabaseClient } from "@/lib/supabase/server"
 import { ensureAgencyForCurrentUser } from "./workspace"
 import { revalidatePath } from "next/cache"
+import { getBillingOverview, getLimitMessage } from "./billing"
+import type { Agency } from "./workspace"
 
 export async function createProject(formData: FormData) {
-  const agency = await ensureAgencyForCurrentUser()
-  if (!agency) return { error: "No agency found" }
+  let agency: Agency | null = null
+  try { agency = await ensureAgencyForCurrentUser() } catch (e) { return { error: e instanceof Error ? e.message : "Could not set up your workspace." } }
+  if (!agency) return { error: "Not authenticated." }
 
   const supabase = await createSupabaseClient()
+  const billing = await getBillingOverview()
+  if (billing?.reached.projects) {
+    return { error: getLimitMessage("projects", billing) }
+  }
+
   const name = formData.get("name") as string
   const client_id = formData.get("client_id") as string
   const description = formData.get("description") as string
@@ -26,6 +34,7 @@ export async function createProject(formData: FormData) {
 
   if (error) return { error: error.message }
 
+  revalidatePath("/dashboard")
   revalidatePath("/dashboard/projects")
   return { success: true }
 }

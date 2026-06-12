@@ -5,7 +5,8 @@ import { ensureAgencyForCurrentUser } from "./workspace"
 import { revalidatePath } from "next/cache"
 
 export async function requestApproval(projectId: string) {
-  const agency = await ensureAgencyForCurrentUser()
+  let agency: Awaited<ReturnType<typeof ensureAgencyForCurrentUser>> = null
+  try { agency = await ensureAgencyForCurrentUser() } catch (e) { return { success: false, error: e instanceof Error ? e.message : "Could not set up your workspace." } }
   if (!agency) return { success: false, error: "Not authenticated." }
 
   const supabase = await createSupabaseClient()
@@ -65,6 +66,8 @@ export async function requestApproval(projectId: string) {
     return { success: false, error: "Approval created but status update failed." }
   }
 
+  revalidatePath("/dashboard")
+  revalidatePath("/dashboard/approvals")
   revalidatePath("/dashboard/projects")
   revalidatePath(`/dashboard/projects/${project.id}`)
   return {

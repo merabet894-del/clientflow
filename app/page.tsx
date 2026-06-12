@@ -518,22 +518,36 @@ export default function ClientFlowPage() {
           <div className="mb-12 text-center">
             <div className="flex justify-center mb-4"><Tag>DEMO</Tag></div>
             <RevealText className="text-4xl md:text-5xl font-light tracking-tight leading-[1.05]">
-              {"See ClientFlow in action."}
+              {"Product demo coming soon"}
             </RevealText>
             <p className="mt-4 text-base text-black/45 leading-relaxed max-w-xl mx-auto">
-              Watch how an agency creates a client, adds a project, shares files, collects feedback, and gets approval from one clean client portal.
+              We&rsquo;re preparing a short walkthrough showing how agencies create clients, manage projects, share deliverables, collect feedback, and request approvals in ClientFlow.
             </p>
           </div>
 
-          <div className="rounded-2xl border border-black/[0.07] bg-white overflow-hidden shadow-sm mb-10">
-            <div className="relative aspect-video bg-[#f0efe9] flex items-center justify-center">
-              <div className="flex flex-col items-center gap-3">
-                <div className="w-14 h-14 rounded-full bg-[#111] flex items-center justify-center hover:bg-[#333] transition-colors cursor-pointer">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><polygon points="8,5 19,12 8,19" /></svg>
-                </div>
-                <span className="px-2.5 py-1 rounded-full text-[10px] font-medium tracking-wider text-black/40 bg-black/[0.06]">45 SEC WALKTHROUGH</span>
+          <div className="rounded-2xl border border-black/[0.07] bg-white shadow-sm mb-10">
+            <div className="px-8 py-20 md:py-28 flex flex-col items-center text-center">
+              <div className="flex size-14 items-center justify-center rounded-2xl border border-black/[0.06] bg-[#f7f7f5] mb-6">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-black/40"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
               </div>
-              <div className="absolute bottom-4 left-4 text-xs text-black/30">Product walkthrough video coming soon</div>
+              <h3 className="text-lg font-medium text-black">Demo walkthrough coming soon</h3>
+              <p className="mt-2 max-w-sm text-sm text-black/45">
+                Join the waitlist or start free to explore the dashboard.
+              </p>
+              <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
+                <a
+                  href="/auth?plan=starter"
+                  className="inline-flex items-center px-6 py-2.5 bg-[#111] text-white text-sm rounded-xl hover:bg-[#333] transition-colors tracking-widest font-medium"
+                >
+                  START FREE
+                </a>
+                <a
+                  href="/contact-sales?plan=pro"
+                  className="inline-flex items-center px-6 py-2.5 border border-black/10 text-black/60 text-sm rounded-xl hover:border-black/25 hover:text-black transition-colors tracking-widest"
+                >
+                  CONTACT SALES
+                </a>
+              </div>
             </div>
           </div>
 
@@ -570,7 +584,7 @@ export default function ClientFlowPage() {
                 price: "$19",
                 period: "/mo",
                 sub: "For freelancers and solo studios",
-                features: ["Client portals", "Projects & tracking", "File sharing", "Feedback collection", "Approvals", "Up to 10 clients"],
+                features: ["Client portals", "Projects & tracking", "File sharing", "Feedback & approvals", "Up to 10 clients", "Up to 25 projects"],
                 delay: 0,
               },
               {
@@ -578,7 +592,7 @@ export default function ClientFlowPage() {
                 price: "$49",
                 period: "/mo",
                 sub: "For growing agencies",
-                features: ["Up to 50 clients", "Unlimited projects", "Team members", "Advanced reporting", "Custom branding", "Priority support"],
+                features: ["Up to 50 clients", "Unlimited projects", "5 team members", "5GB storage", "Custom branding", "Priority support"],
                 highlight: true,
                 delay: 80,
               },
@@ -586,7 +600,7 @@ export default function ClientFlowPage() {
                 name: "Agency",
                 price: "Custom",
                 sub: "For teams managing many clients",
-                features: ["Unlimited clients & projects", "Team onboarding", "Custom workspace", "Dedicated support", "Priority access", "Premium onboarding"],
+                features: ["Unlimited clients & projects", "Unlimited team members", "50GB storage", "Custom workspace", "Dedicated support", "Premium onboarding"],
                 delay: 140,
               },
             ].map((plan) => (
@@ -611,12 +625,12 @@ export default function ClientFlowPage() {
                     </li>
                   ))}
                 </ul>
-                <a href="/auth" className={`block w-full text-center py-3 rounded-xl text-sm tracking-widest transition-all duration-200 ${
+                <a href={plan.name === "Agency" ? "/contact-sales?plan=agency" : plan.name === "Pro" ? "/contact-sales?plan=pro" : "/auth?plan=starter"} className={`block w-full text-center py-3 rounded-xl text-sm tracking-widest transition-all duration-200 ${
                   plan.highlight
                     ? "bg-[#111] text-white hover:bg-[#333]"
                     : "border border-black/10 text-black/60 hover:border-black/25 hover:text-black hover:bg-black/[0.04]"
                 }`}>
-                  {plan.name === "Enterprise" ? "CONTACT SALES" : "GET STARTED"}
+                  {plan.name === "Starter" ? "START FREE" : plan.name === "Pro" ? "REQUEST PRO ACCESS" : "CONTACT SALES"}
                 </a>
               </BentoCard>
             ))}
@@ -675,7 +689,7 @@ export default function ClientFlowPage() {
               { label: "How it Works", href: "#workflow" },
               { label: "Pricing",      href: "#pricing" },
               { label: "Demo",         href: "#demo" },
-              { label: "Contact",      href: "#contact" },
+              { label: "Contact",      href: "/contact-sales" },
             ].map(l => (
               <a key={l.label} href={l.href} className="text-xs text-black/35 hover:text-black/70 transition-colors tracking-widest">{l.label}</a>
             ))}
@@ -683,9 +697,9 @@ export default function ClientFlowPage() {
 
           <div className="flex items-center gap-6">
             {[
-              { label: "Privacy", href: "#" },
-              { label: "Terms",   href: "#" },
-              { label: "Contact", href: "#" },
+              { label: "Privacy", href: "/privacy" },
+              { label: "Terms",   href: "/terms" },
+              { label: "Contact", href: "/contact-sales" },
             ].map(l => (
               <a key={l.label} href={l.href} className="text-xs text-black/25 hover:text-black/55 transition-colors tracking-widest">{l.label}</a>
             ))}

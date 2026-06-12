@@ -3,12 +3,20 @@
 import { createClient as createSupabaseClient } from "@/lib/supabase/server"
 import { ensureAgencyForCurrentUser } from "./workspace"
 import { revalidatePath } from "next/cache"
+import { getBillingOverview, getLimitMessage } from "./billing"
+import type { Agency } from "./workspace"
 
 export async function createClient(formData: FormData) {
-  const agency = await ensureAgencyForCurrentUser()
-  if (!agency) return { error: "No agency found" }
+  let agency: Agency | null = null
+  try { agency = await ensureAgencyForCurrentUser() } catch (e) { return { error: e instanceof Error ? e.message : "Could not set up your workspace." } }
+  if (!agency) return { error: "Not authenticated." }
 
   const supabase = await createSupabaseClient()
+  const billing = await getBillingOverview()
+  if (billing?.reached.clients) {
+    return { error: getLimitMessage("clients", billing) }
+  }
+
   const name = formData.get("name") as string
   const email = formData.get("email") as string
   const company = formData.get("company") as string
@@ -30,6 +38,7 @@ export async function createClient(formData: FormData) {
   if (error) return { error: error.message }
   if (!data?.id) return { error: "Client was not created. Please try again." }
 
+  revalidatePath("/dashboard")
   revalidatePath("/dashboard/clients")
   return { success: true, clientId: data.id }
 }

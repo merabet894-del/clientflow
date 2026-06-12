@@ -1,8 +1,25 @@
 import Link from "next/link"
+import {
+  ArrowUpRight,
+  BadgeCheck,
+  ClipboardCheck,
+  Clock3,
+  FileUp,
+  Files,
+  FolderKanban,
+  MessageSquare,
+  Send,
+} from "lucide-react"
+
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  DashboardPageHeader,
+  DashboardPanel,
+  EmptyState,
+} from "@/components/dashboard/dashboard-ui"
+import { ensureAgencyForCurrentUser } from "@/lib/actions/workspace"
 import { getProjectById, getCommentsByProjectId, getApprovalsByProjectId } from "@/lib/actions/projects"
 import { getProjectFiles } from "@/lib/actions/files"
 import { SharePortalPopover } from "@/components/dashboard/share-portal-popover"
@@ -25,7 +42,7 @@ function formatStatus(status: string) {
 function getStatusClass(status: string) {
   if (status === "completed" || status === "approved") return "border-emerald-200 bg-emerald-50 text-emerald-700"
   if (status === "waiting approval" || status === "waiting_approval") return "border-amber-300 bg-amber-50 text-amber-800"
-  if (status === "client feedback" || status === "needs changes" || status === "needs_changes") return "border-amber-300 bg-amber-100 text-amber-900"
+  if (status === "client feedback" || status === "needs changes" || status === "needs_changes") return "border-blue-200 bg-blue-50 text-blue-700"
   return "border-black/15 bg-white text-black/70"
 }
 
@@ -34,7 +51,75 @@ function statusDescription(status: string, fileCount: number, description: strin
   if (status === "waiting approval" || status === "waiting_approval") return "Waiting for client approval."
   if (status === "client feedback" || status === "needs changes" || status === "needs_changes") return "Client feedback received. Review changes and send an update."
   if (fileCount === 0) return "Start by uploading a file before requesting approval."
-  return "Files are ready. Request approval when the deliverable is ready."
+  return description || "Files are ready. Request approval when the deliverable is ready."
+}
+
+function getApprovalState(status: string, approvalCount: number) {
+  if (status === "completed" || status === "approved") return "Approved"
+  if (status === "waiting approval" || status === "waiting_approval") return "Waiting"
+  if (approvalCount > 0) return "Requested"
+  return "Not requested"
+}
+
+function getNextAction(status: string, fileCount: number, feedbackCount: number, approvalState: string) {
+  if (fileCount === 0) {
+    return {
+      label: "Upload first deliverable",
+      description: "Add a file before this project can move into client review.",
+      href: "/dashboard/files",
+      icon: FileUp,
+      type: "link" as const,
+    }
+  }
+
+  if (status === "client feedback" || status === "needs changes" || status === "needs_changes" || feedbackCount > 0) {
+    return {
+      label: "Review client feedback",
+      description: "Resolve client notes before sending the next deliverable update.",
+      href: "#feedback",
+      icon: MessageSquare,
+      type: "anchor" as const,
+    }
+  }
+
+  if (approvalState === "Not requested") {
+    return {
+      label: "Request client approval",
+      description: "Send the current deliverables to the portal for client sign-off.",
+      href: "",
+      icon: Send,
+      type: "approval" as const,
+    }
+  }
+
+  if (approvalState === "Waiting") {
+    return {
+      label: "Follow up on approval",
+      description: "The client has the request. Keep the decision visible until it lands.",
+      href: "/dashboard/approvals",
+      icon: Clock3,
+      type: "link" as const,
+    }
+  }
+
+  return {
+    label: "Review final delivery",
+    description: "This workspace is approved. Keep files, feedback, and decisions together here.",
+    href: "#approvals",
+    icon: BadgeCheck,
+    type: "anchor" as const,
+  }
+}
+
+function getProgressStage(progress: number, approvalState: string) {
+  if (approvalState === "Approved" || progress >= 100) return "Approved"
+  if (approvalState === "Waiting" || progress >= 70) return "Client review"
+  if (progress >= 40) return "Deliverables"
+  return "Setup"
+}
+
+function getLatestApproval(approvals: { created_at: string; status: string; title: string }[]) {
+  return approvals[0] ?? null
 }
 
 function formatDate(dateStr: string) {
@@ -60,234 +145,390 @@ function getTypeBadge(type: string | null) {
 
 export default async function ProjectDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams?: Promise<{ tab?: string | string[] }>
 }) {
   const { id } = await params
-  const project = await getProjectById(id)
+  const query = await searchParams
+  const agency = await ensureAgencyForCurrentUser().catch(() => null)
+  const agencyId = agency?.id
+  const project = await getProjectById(id, agencyId)
 
   if (!project) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Card className="w-full max-w-md rounded-2xl border-black/15 bg-white shadow-sm">
-          <CardContent className="p-8 text-center">
-            <h1 className="text-2xl font-semibold tracking-tight">Project not found</h1>
-            <p className="mt-3 text-sm text-muted-foreground">
-              This project does not exist or you do not have access to it.
-            </p>
-            <Link href="/dashboard/projects">
-              <Button className="mt-6 rounded-full">Back to projects</Button>
-            </Link>
-          </CardContent>
-        </Card>
+      <div className="py-20">
+        <DashboardPanel title="Project not found">
+          <EmptyState
+            icon={FolderKanban}
+            title="Project not found"
+            description="This project does not exist or you do not have access to it."
+            action={
+              <Button asChild className="rounded-full">
+                <Link href="/dashboard/projects">Back to projects</Link>
+              </Button>
+            }
+          />
+        </DashboardPanel>
       </div>
     )
   }
 
   const [comments, approvals, projectFiles] = await Promise.all([
-    getCommentsByProjectId(project.id),
-    getApprovalsByProjectId(project.id),
-    getProjectFiles(project.id),
+    getCommentsByProjectId(project.id, agencyId),
+    getApprovalsByProjectId(project.id, agencyId),
+    getProjectFiles(project.id, agencyId),
   ])
 
   const clientComments = comments.filter((comment) => comment.author_type === "client")
   const commentCount = clientComments.length
   const fileCount = projectFiles.length
   const isCompleted = project.status === "completed" || project.status === "approved"
+  const approvalState = getApprovalState(project.status, approvals.length)
+  const nextAction = getNextAction(project.status, fileCount, commentCount, approvalState)
+  const NextActionIcon = nextAction.icon
+  const progress = Math.max(0, Math.min(project.progress, 100))
+  const progressStage = getProgressStage(progress, approvalState)
+  const latestApproval = getLatestApproval(approvals)
+  const requestedTab = Array.isArray(query?.tab) ? query?.tab[0] : query?.tab
+  const fallbackTab =
+    fileCount === 0
+      ? "files"
+      : approvalState === "Waiting"
+        ? "approvals"
+        : commentCount > 0 || project.status === "client feedback" || project.status === "needs changes" || project.status === "needs_changes"
+          ? "feedback"
+          : "overview"
+  const defaultTab = ["overview", "files", "feedback", "approvals", "tasks"].includes(requestedTab ?? "")
+    ? requestedTab!
+    : fallbackTab
 
   return (
     <>
-      <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <Badge variant="outline" className="rounded-full bg-white">
-            {project.clients?.name ?? "No client"}
-          </Badge>
-          <h1 className="mt-4 text-3xl font-semibold tracking-tight md:text-4xl">
-            {project.name}
-          </h1>
-          <p className="mt-2 text-muted-foreground">
-            {statusDescription(project.status, fileCount, project.description)}
+      <DashboardPageHeader
+        badge={project.clients?.name ?? "No client"}
+        title={project.name}
+        description={statusDescription(project.status, fileCount, project.description)}
+        actions={
+          <>
+            <SharePortalPopover portalToken={project.portal_token} projectId={project.id} />
+            {!isCompleted ? (
+              <RequestApprovalButton
+                projectId={project.id}
+                fileCount={fileCount}
+                status={project.status}
+              />
+            ) : (
+              <Badge className="h-10 rounded-full bg-emerald-500 px-4 py-2 text-sm text-white">
+                Completed
+              </Badge>
+            )}
+          </>
+        }
+      />
+
+      <div className="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <section className="rounded-2xl border border-black/15 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge
+                  variant="outline"
+                  className={`rounded-full ${getStatusClass(project.status)}`}
+                >
+                  {formatStatus(project.status)}
+                </Badge>
+                <Badge variant="outline" className="rounded-full bg-[#f7f7f5]">
+                  {progressStage}
+                </Badge>
+              </div>
+              <h2 className="mt-4 text-2xl font-semibold tracking-tight">
+                {progress}% complete
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                {statusDescription(project.status, fileCount, project.description)}
+              </p>
+            </div>
+
+            <div className="rounded-2xl bg-[#f7f7f5] p-4 ring-1 ring-black/[0.06] lg:w-72">
+              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                <NextActionIcon className="size-3.5" />
+                Next action
+              </div>
+              <p className="mt-3 font-semibold">{nextAction.label}</p>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                {nextAction.description}
+              </p>
+              <div className="mt-4">
+                {nextAction.type === "approval" ? (
+                  <RequestApprovalButton
+                    projectId={project.id}
+                    fileCount={fileCount}
+                    status={project.status}
+                  />
+                ) : (
+                  <Button asChild className="rounded-full">
+                    <Link href={nextAction.href}>
+                      Continue
+                      <ArrowUpRight className="size-4" />
+                    </Link>
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <div className="h-3 overflow-hidden rounded-full bg-black/[0.08]">
+              <div
+                className="h-full rounded-full bg-black"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <div className="mt-3 grid grid-cols-4 gap-2 text-xs text-muted-foreground">
+              {["Setup", "Deliverables", "Client review", "Approved"].map((stage) => (
+                <span
+                  key={stage}
+                  className={stage === progressStage ? "font-medium text-black" : undefined}
+                >
+                  {stage}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              { label: "Client", value: project.clients?.name ?? "No client", icon: FolderKanban },
+              { label: "Deliverables", value: `${fileCount}`, icon: Files },
+              { label: "Feedback", value: commentCount === 0 ? "None" : `${commentCount}`, icon: MessageSquare },
+              { label: "Approval", value: approvalState, icon: ClipboardCheck },
+            ].map((item) => {
+              const Icon = item.icon
+              return (
+                <div key={item.label} className="rounded-xl bg-[#f7f7f5] px-4 py-3 ring-1 ring-black/[0.06]">
+                  <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    <Icon className="size-3.5" />
+                    {item.label}
+                  </div>
+                  <p className="mt-2 truncate text-base font-semibold">{item.value}</p>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+
+        <aside className="rounded-2xl border border-black/15 bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-semibold">Workspace pulse</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Files, feedback, and approval state at a glance.
           </p>
-        </div>
-
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-          <SharePortalPopover portalToken={project.portal_token} agencyId={project.agency_id} />
-          {!isCompleted && (
-            <RequestApprovalButton
-              projectId={project.id}
-              fileCount={fileCount}
-              status={project.status}
-            />
-          )}
-          {isCompleted && (
-            <Badge className="h-10 rounded-full bg-emerald-500 px-4 py-2 text-sm text-white">
-              Completed
-            </Badge>
-          )}
-        </div>
-      </header>
-
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
-          <CardContent className="p-4 sm:p-5">
-            <p className="text-sm text-muted-foreground">Status</p>
-            <Badge
-              variant="outline"
-              className={`mt-2 rounded-full ${getStatusClass(project.status)}`}
-            >
-              {formatStatus(project.status)}
-            </Badge>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
-          <CardContent className="p-4 sm:p-5">
-            <p className="text-sm text-muted-foreground">Progress</p>
-            <p className="mt-3 text-2xl font-semibold">{project.progress}%</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Progress updates automatically as files are shared and approvals are completed.
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
-          <CardContent className="p-4 sm:p-5">
-            <p className="text-sm text-muted-foreground">Files</p>
-            <p className="mt-3 text-2xl font-semibold">{fileCount}</p>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
-          <CardContent className="p-4 sm:p-5">
-            <p className="text-sm text-muted-foreground">Feedback</p>
-            <p className="mt-3 text-2xl font-semibold">
-              {commentCount === 0 ? "None" : commentCount === 1 ? "1 comment" : `${commentCount} comments`}
-            </p>
-          </CardContent>
-        </Card>
+          <div className="mt-5 space-y-3">
+            <div className="rounded-xl bg-[#f7f7f5] p-4 ring-1 ring-black/[0.06]">
+              <p className="text-xs font-medium text-muted-foreground">Latest file</p>
+              <p className="mt-1 truncate text-sm font-medium">
+                {projectFiles[0]?.name ?? "No deliverables uploaded"}
+              </p>
+            </div>
+            <div className="rounded-xl bg-[#f7f7f5] p-4 ring-1 ring-black/[0.06]">
+              <p className="text-xs font-medium text-muted-foreground">Latest feedback</p>
+              <p className="mt-1 truncate text-sm font-medium">
+                {clientComments[0]?.body ?? "No client feedback yet"}
+              </p>
+            </div>
+            <div className="rounded-xl bg-[#f7f7f5] p-4 ring-1 ring-black/[0.06]">
+              <p className="text-xs font-medium text-muted-foreground">Approval request</p>
+              <p className="mt-1 truncate text-sm font-medium">
+                {latestApproval ? `${latestApproval.title} · ${formatStatus(latestApproval.status)}` : "Not requested yet"}
+              </p>
+            </div>
+          </div>
+        </aside>
       </div>
 
-      <Card className="mt-6 rounded-2xl border-black/15 bg-white shadow-sm">
-        <CardContent className="p-5">
-          <Tabs defaultValue="overview">
-            <TabsList className="h-auto flex-wrap justify-start rounded-2xl bg-[#f1f1ef] p-1">
-              <TabsTrigger value="overview" className="rounded-xl">
-                Overview
-              </TabsTrigger>
-              <TabsTrigger value="tasks" className="rounded-xl">
-                Tasks
-              </TabsTrigger>
-              <TabsTrigger value="files" className="rounded-xl">
-                Files
-              </TabsTrigger>
-              <TabsTrigger value="feedback" className="rounded-xl">
-                Feedback
-              </TabsTrigger>
-              <TabsTrigger value="approval" className="rounded-xl">
-                Approval
-              </TabsTrigger>
-            </TabsList>
+      <DashboardPanel
+        className="mt-6"
+        title="Project workspace"
+        description="Review project summary, files, client feedback, and approval status."
+      >
+        <Tabs defaultValue={defaultTab}>
+          <TabsList className="h-auto flex-wrap justify-start rounded-2xl bg-[#f1f1ef] p-1">
+            <TabsTrigger value="overview" className="rounded-xl">
+              Overview
+            </TabsTrigger>
+            <TabsTrigger value="files" className="rounded-xl">
+              Deliverables
+            </TabsTrigger>
+            <TabsTrigger value="feedback" className="rounded-xl">
+              Feedback
+            </TabsTrigger>
+            <TabsTrigger value="approvals" className="rounded-xl">
+              Approvals
+            </TabsTrigger>
+            <TabsTrigger value="tasks" className="rounded-xl">
+              Tasks
+            </TabsTrigger>
+          </TabsList>
 
-            <TabsContent value="overview" className="mt-6">
-              <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
-                <div className="rounded-2xl border bg-[#fafafa] p-5">
-                  <h2 className="text-xl font-semibold">Project summary</h2>
-                  <p className="mt-3 leading-7 text-muted-foreground">
-                    {statusDescription(project.status, fileCount, project.description)}
-                  </p>
+          <TabsContent value="overview" className="mt-6">
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+              <div className="rounded-2xl border bg-[#fafafa] p-5">
+                <h2 className="text-xl font-semibold">Delivery board</h2>
+                <p className="mt-3 leading-7 text-muted-foreground">
+                  {statusDescription(project.status, fileCount, project.description)}
+                </p>
+                <div className="mt-5 grid gap-3 md:grid-cols-3">
+                  {[
+                    {
+                      label: "Deliver",
+                      title: fileCount > 0 ? `${fileCount} file${fileCount === 1 ? "" : "s"} shared` : "No files yet",
+                      body: fileCount > 0 ? "Deliverables are attached to this workspace." : "Upload work before review can begin.",
+                      icon: Files,
+                    },
+                    {
+                      label: "Review",
+                      title: commentCount > 0 ? `${commentCount} feedback item${commentCount === 1 ? "" : "s"}` : "No feedback yet",
+                      body: commentCount > 0 ? "Client notes are ready to resolve." : "Portal feedback will appear here.",
+                      icon: MessageSquare,
+                    },
+                    {
+                      label: "Approve",
+                      title: approvalState,
+                      body: latestApproval ? `Latest request: ${latestApproval.title}` : "Request approval after deliverables are ready.",
+                      icon: BadgeCheck,
+                    },
+                  ].map((card) => {
+                    const Icon = card.icon
+                    return (
+                      <div key={card.label} className="rounded-xl bg-white p-4 ring-1 ring-black/[0.06]">
+                        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          <Icon className="size-3.5" />
+                          {card.label}
+                        </div>
+                        <p className="mt-3 font-semibold">{card.title}</p>
+                        <p className="mt-1 text-sm leading-6 text-muted-foreground">{card.body}</p>
+                      </div>
+                    )
+                  })}
                 </div>
+              </div>
 
-                <div className="rounded-2xl border bg-[#fafafa] p-5">
-                  <h2 className="text-xl font-semibold">Client portal</h2>
-                  <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                    Share a clean portal link with the client so they can review
-                    project progress and shared files.
-                  </p>
-                  <div className="mt-5">
-                    <SharePortalPopover portalToken={project.portal_token} agencyId={project.agency_id} />
+              <div className="rounded-2xl border bg-[#fafafa] p-5">
+                <h2 className="text-xl font-semibold">Client portal</h2>
+                <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                  Share a clean portal link with the client so they can review project progress and shared files.
+                </p>
+                <div className="mt-4 space-y-3 text-sm">
+                  <div className="flex items-center justify-between gap-3 rounded-xl bg-white px-4 py-3 ring-1 ring-black/[0.06]">
+                    <span className="text-muted-foreground">Client</span>
+                    <span className="font-medium">{project.clients?.name ?? "No client assigned"}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 rounded-xl bg-white px-4 py-3 ring-1 ring-black/[0.06]">
+                    <span className="text-muted-foreground">Updated</span>
+                    <span className="font-medium">{formatDate(project.updated_at)}</span>
                   </div>
                 </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="tasks" className="mt-6">
-              <div className="rounded-2xl border bg-[#fafafa] p-8 text-center">
-                <p className="text-muted-foreground">No tasks yet.</p>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="files" className="mt-6">
-              {projectFiles.length === 0 ? (
-                <div className="rounded-2xl border bg-[#fafafa] p-8 text-center">
-                  <p className="text-muted-foreground">No files shared yet.</p>
-                  <Link href="/dashboard/files">
-                    <Button className="mt-5 rounded-full">Upload file</Button>
-                  </Link>
+                <div className="mt-5">
+                  <SharePortalPopover portalToken={project.portal_token} projectId={project.id} />
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  {projectFiles.map((file) => (
-                    <div
-                      key={file.id}
-                      className="flex flex-col gap-3 rounded-2xl border bg-[#fafafa] p-4 md:flex-row md:items-center md:justify-between"
-                    >
-                      <div className="min-w-0">
-                        <p className="font-medium">{file.name}</p>
-                        <p className="text-sm text-muted-foreground">{file.type ?? "Other"}</p>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-3 md:justify-end">
-                        <p className="text-sm text-muted-foreground">{file.size ?? "-"}</p>
-                        {file.url ? (
-                          <a href={`/api/files/${file.id}/signed-url`} target="_blank" rel="noopener noreferrer">
-                            <Button variant="outline" className="h-9 rounded-full bg-white text-sm">
-                              View
-                            </Button>
-                          </a>
-                        ) : (
-                          <Button variant="outline" className="h-9 rounded-full bg-white text-sm" disabled>
-                            Stored
-                          </Button>
-                        )}
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="tasks" className="mt-6">
+            <EmptyState
+              compact
+              icon={ClipboardCheck}
+              title="Tasks coming soon"
+              description="A task checklist for agency-side production will appear here when task records are available."
+            />
+          </TabsContent>
+
+          <TabsContent id="files" value="files" className="mt-6">
+            {projectFiles.length === 0 ? (
+              <EmptyState
+                compact
+                icon={FileUp}
+                title="No files shared yet"
+                description="Upload a file before requesting approval."
+                action={
+                  <Button asChild className="rounded-full">
+                    <Link href="/dashboard/files">Upload file</Link>
+                  </Button>
+                }
+              />
+            ) : (
+              <div className="space-y-3">
+                {projectFiles.map((file) => (
+                  <div
+                    key={file.id}
+                    className="flex flex-col gap-3 rounded-2xl border bg-[#fafafa] p-4 md:flex-row md:items-center md:justify-between"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-medium">{file.name}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <Badge
+                          variant="outline"
+                          className={`rounded-full ${getTypeBadge(file.type)}`}
+                        >
+                          {file.type ?? "Other"}
+                        </Badge>
+                        <span className="text-sm text-muted-foreground">{file.size ?? "-"}</span>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </TabsContent>
+                    {file.url ? (
+                      <Button asChild variant="outline" className="h-9 rounded-full bg-white text-sm">
+                        <a href={`/api/files/${file.id}/signed-url`} target="_blank" rel="noopener noreferrer">
+                          View
+                        </a>
+                      </Button>
+                    ) : (
+                      <Button variant="outline" className="h-9 rounded-full bg-white text-sm" disabled>
+                        Stored
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </TabsContent>
 
-            <TabsContent value="feedback" className="mt-6">
-              {clientComments.length === 0 ? (
-                <div className="rounded-2xl border bg-[#fafafa] p-8 text-center">
-                  <p className="text-muted-foreground">No client feedback yet.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {clientComments.map((comment) => (
-                    <div key={comment.id} className="rounded-2xl border bg-[#fafafa] p-4">
-                      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                        <p className="font-medium">{comment.author_name ?? comment.author_type}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {formatDate(comment.created_at)}
-                        </p>
-                      </div>
-                      <p className="mt-3 leading-7 text-muted-foreground">
-                        {comment.body}
+          <TabsContent id="feedback" value="feedback" className="mt-6">
+            {clientComments.length === 0 ? (
+              <EmptyState
+                compact
+                icon={MessageSquare}
+                title="No client feedback yet"
+                description="Feedback submitted through the portal will appear here."
+              />
+            ) : (
+              <div className="space-y-3">
+                {clientComments.map((comment) => (
+                  <div key={comment.id} className="rounded-2xl border bg-[#fafafa] p-4">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                      <p className="font-medium">{comment.author_name ?? comment.author_type}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {formatDate(comment.created_at)}
                       </p>
                     </div>
-                  ))}
-                </div>
-              )}
-            </TabsContent>
+                    <p className="mt-3 leading-7 text-muted-foreground">
+                      {comment.body}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </TabsContent>
 
-            <TabsContent value="approval" className="mt-6">
-              <ApprovalTabContent
-                status={project.status}
-                approvals={approvals}
-              />
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
+          <TabsContent id="approvals" value="approvals" className="mt-6">
+            <ApprovalTabContent
+              status={project.status}
+              approvals={approvals}
+            />
+          </TabsContent>
+        </Tabs>
+      </DashboardPanel>
     </>
   )
 }

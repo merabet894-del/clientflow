@@ -7,8 +7,39 @@ create table if not exists agencies (
   name text not null,
   website text,
   contact_email text,
+  plan text default 'starter' check (plan in ('starter', 'pro', 'agency')),
+  subscription_status text default 'trialing' check (subscription_status in ('trialing', 'active', 'past_due', 'canceled', 'incomplete')),
+  trial_ends_at timestamp with time zone default (now() + interval '14 days'),
+  current_period_end timestamp with time zone,
+  stripe_customer_id text,
+  stripe_subscription_id text,
+  max_clients integer default 10,
+  max_projects integer default 10,
+  max_team_members integer default 1,
+  max_storage_mb integer default 500,
   created_at timestamp with time zone default now()
 );
+
+alter table agencies add column if not exists plan text default 'starter';
+alter table agencies add column if not exists subscription_status text default 'trialing';
+alter table agencies add column if not exists trial_ends_at timestamp with time zone default (now() + interval '14 days');
+alter table agencies add column if not exists current_period_end timestamp with time zone;
+alter table agencies add column if not exists stripe_customer_id text;
+alter table agencies add column if not exists stripe_subscription_id text;
+alter table agencies add column if not exists max_clients integer default 10;
+alter table agencies add column if not exists max_projects integer default 10;
+alter table agencies add column if not exists max_team_members integer default 1;
+alter table agencies add column if not exists max_storage_mb integer default 500;
+
+update agencies
+set
+  plan = coalesce(plan, 'starter'),
+  subscription_status = coalesce(subscription_status, 'trialing'),
+  trial_ends_at = coalesce(trial_ends_at, now() + interval '14 days'),
+  max_clients = coalesce(max_clients, 10),
+  max_projects = coalesce(max_projects, 10),
+  max_team_members = coalesce(max_team_members, 1),
+  max_storage_mb = coalesce(max_storage_mb, 500);
 
 alter table agencies enable row level security;
 
@@ -67,6 +98,7 @@ create table if not exists projects (
   status text default 'active',
   progress integer default 0,
   portal_token text unique default encode(gen_random_bytes(24), 'hex'),
+  portal_shared_at timestamp with time zone,
   created_at timestamp with time zone default now(),
   updated_at timestamp with time zone default now()
 );
@@ -80,6 +112,8 @@ create policy "Users can view projects in their agency"
 create policy "Users can insert projects in their agency"
   on projects for insert
   with check (agency_id in (select id from agencies where owner_id = auth.uid()));
+
+alter table projects add column if not exists portal_shared_at timestamp with time zone;
 
 create policy "Users can update projects in their agency"
   on projects for update
@@ -253,3 +287,28 @@ create policy "Users can update files in their agency"
 create policy "Users can delete files in their agency"
   on files for delete
   using (agency_id in (select id from agencies where owner_id = auth.uid()));
+
+-- Notifications
+create table if not exists notifications (
+  id uuid primary key default gen_random_uuid(),
+  agency_id uuid references agencies(id) on delete cascade not null,
+  project_id uuid references projects(id) on delete cascade,
+  client_id uuid references clients(id) on delete set null,
+  type text not null check (type in ('feedback', 'approval', 'changes_requested', 'portal_view', 'file_view')),
+  title text not null,
+  message text not null,
+  target_href text not null,
+  is_read boolean not null default false,
+  created_at timestamp with time zone default now()
+);
+
+alter table notifications enable row level security;
+
+create policy "Users can view notifications in their agency"
+  on notifications for select
+  using (agency_id in (select id from agencies where owner_id = auth.uid()));
+
+create policy "Users can update notifications in their agency"
+  on notifications for update
+  using (agency_id in (select id from agencies where owner_id = auth.uid()))
+  with check (agency_id in (select id from agencies where owner_id = auth.uid()));

@@ -1,28 +1,54 @@
 import Link from "next/link"
+import {
+  ArrowUpRight,
+  BadgeCheck,
+  CircleAlert,
+  Clock3,
+  FolderKanban,
+  MessageSquare,
+  Send,
+} from "lucide-react"
+
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { getApprovals, getApprovalStats } from "@/lib/actions/approvals"
+  DashboardPageHeader,
+  DashboardPanel,
+  EmptyState,
+  MetricCard,
+} from "@/components/dashboard/dashboard-ui"
+import { ensureAgencyForCurrentUser } from "@/lib/actions/workspace"
+import { getApprovals, getApprovalStats, type ApprovalWithProject } from "@/lib/actions/approvals"
+import { cn } from "@/lib/utils"
+
+type ApprovalsPageProps = {
+  searchParams?: Promise<{ status?: string | string[] }>
+}
+
+const statusTabs = [
+  { value: "all", label: "All" },
+  { value: "pending", label: "Pending" },
+  { value: "approved", label: "Approved" },
+  { value: "needs-changes", label: "Needs changes" },
+]
+
+function normalizeStatus(status: string) {
+  if (status === "approved") return "approved"
+  if (status === "client feedback" || status === "needs changes" || status === "needs_changes") return "needs-changes"
+  return "pending"
+}
 
 function formatStatus(status: string) {
   if (status === "approved") return "Approved"
-  if (status === "pending") return "Waiting approval"
-  if (status === "client feedback" || status === "needs changes") return "Needs changes"
+  if (status === "pending" || status === "waiting approval") return "Waiting approval"
+  if (status === "client feedback" || status === "needs changes" || status === "needs_changes") return "Needs changes"
   return status
 }
 
 function getStatusClass(status: string) {
   if (status === "approved") return "border-emerald-200 bg-emerald-50 text-emerald-700"
-  if (status === "Feedback requested") return "border-blue-200 bg-blue-50 text-blue-700"
-  if (status === "Waiting approval" || status === "pending") return "border-amber-200 bg-amber-50 text-amber-700"
+  if (status === "client feedback" || status === "needs changes" || status === "needs_changes") return "border-blue-200 bg-blue-50 text-blue-700"
+  if (status === "pending" || status === "waiting approval") return "border-amber-200 bg-amber-50 text-amber-700"
   return "border-black/15 bg-white text-black"
 }
 
@@ -38,204 +64,260 @@ function formatDate(dateStr: string) {
   return date.toLocaleDateString()
 }
 
+function getStatusFilter(params?: { status?: string | string[] }) {
+  const raw = Array.isArray(params?.status) ? params?.status[0] : params?.status
+  return statusTabs.some((tab) => tab.value === raw) ? raw ?? "all" : "all"
+}
+
+function getTabHref(status: string) {
+  return status === "all" ? "/dashboard/approvals" : `/dashboard/approvals?status=${status}`
+}
+
+function getNextAction(approval: ApprovalWithProject) {
+  const status = normalizeStatus(approval.status)
+  if (status === "pending") return "Follow up with client"
+  if (status === "needs-changes") return "Resolve feedback"
+  return "Review approval"
+}
+
+function getApprovalPriority(status: string) {
+  const normalized = normalizeStatus(status)
+  if (normalized === "needs-changes") return 0
+  if (normalized === "pending") return 1
+  return 2
+}
+
 const workflowSteps = [
   {
     step: "1",
-    title: "Send request",
-    description: "Share deliverables with your client for review through the portal.",
+    title: "Deliverable uploaded",
+    description: "A file is linked to a project workspace.",
   },
   {
     step: "2",
-    title: "Client reviews",
-    description: "Client examines the work, leaves feedback, or asks for changes.",
+    title: "Approval requested",
+    description: "The client reviews the work in their portal.",
   },
   {
     step: "3",
-    title: "Approve or request changes",
-    description: "Client approves the deliverable or requests changes with comments.",
+    title: "Decision tracked",
+    description: "Approved work and requested changes stay attached to the project.",
   },
 ]
 
-export default async function ApprovalsPage() {
-  const [approvals, stats] = await Promise.all([
-    getApprovals(),
-    getApprovalStats(),
+export default async function ApprovalsPage({ searchParams }: ApprovalsPageProps) {
+  const agency = await ensureAgencyForCurrentUser().catch(() => null)
+  const agencyId = agency?.id
+  const [approvals, stats, params] = await Promise.all([
+    getApprovals(agencyId),
+    getApprovalStats(agencyId),
+    searchParams,
   ])
+  const statusFilter = getStatusFilter(params)
+  const visibleApprovals = approvals
+    .filter((approval) =>
+      statusFilter === "all" ? true : normalizeStatus(approval.status) === statusFilter
+    )
+    .sort((a, b) => {
+      const priorityDiff = getApprovalPriority(a.status) - getApprovalPriority(b.status)
+      if (priorityDiff !== 0) return priorityDiff
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    })
 
-  const pendingApprovals = approvals.filter((a) => a.status === "pending")
+  const tabCounts = {
+    all: approvals.length,
+    pending: approvals.filter((a) => normalizeStatus(a.status) === "pending").length,
+    approved: approvals.filter((a) => normalizeStatus(a.status) === "approved").length,
+    "needs-changes": approvals.filter((a) => normalizeStatus(a.status) === "needs-changes").length,
+  }
 
   return (
     <>
-      <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <Badge variant="outline" className="rounded-full bg-white">
-            Approvals
-          </Badge>
-          <h1 className="mt-4 text-3xl font-semibold tracking-tight md:text-4xl">
-            Client approvals
-          </h1>
-          <p className="mt-2 text-muted-foreground">
-            Approval requests are created from project pages after uploading a deliverable.
-          </p>
-        </div>
-
-        <Link href="/dashboard/projects">
-          <Button className="rounded-full">Request from project</Button>
-        </Link>
-      </header>
+      <DashboardPageHeader
+        badge="Approval workflow"
+        title="Approvals"
+        description="Track client decisions, follow up on pending reviews, and resolve requested changes."
+        actions={
+          <Button asChild className="rounded-full">
+            <Link href="/dashboard/projects">
+              <FolderKanban className="size-4" />
+              Request from project
+            </Link>
+          </Button>
+        }
+      />
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
-          <CardContent className="p-4 sm:p-5">
-            <p className="text-sm text-muted-foreground">Waiting approval</p>
-            <p className="mt-3 text-2xl font-semibold sm:text-3xl">{stats.waitingApproval}</p>
-          </CardContent>
-        </Card>
-        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
-          <CardContent className="p-4 sm:p-5">
-            <p className="text-sm text-muted-foreground">Approved this month</p>
-            <p className="mt-3 text-2xl font-semibold sm:text-3xl">{stats.approvedThisMonth}</p>
-          </CardContent>
-        </Card>
-        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
-          <CardContent className="p-4 sm:p-5">
-            <p className="text-sm text-muted-foreground">Feedback requested</p>
-            <p className="mt-3 text-2xl font-semibold sm:text-3xl">{stats.feedbackRequested}</p>
-          </CardContent>
-        </Card>
-        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
-          <CardContent className="p-4 sm:p-5">
-            <p className="text-sm text-muted-foreground">Average approval time</p>
-            <p className="mt-3 text-2xl font-semibold sm:text-3xl">{stats.averageApprovalTime}</p>
-          </CardContent>
-        </Card>
+        <MetricCard
+          label="Waiting approval"
+          value={stats.waitingApproval}
+          description="Pending client decision"
+          icon={Clock3}
+          tone="warning"
+        />
+        <MetricCard
+          label="Approved this month"
+          value={stats.approvedThisMonth}
+          description="Completed decisions"
+          icon={BadgeCheck}
+          tone="success"
+        />
+        <MetricCard
+          label="Needs changes"
+          value={stats.feedbackRequested}
+          description="Feedback requested"
+          icon={MessageSquare}
+          tone="info"
+        />
+        <MetricCard
+          label="Average approval time"
+          value={stats.averageApprovalTime}
+          description="From request to decision"
+          icon={CircleAlert}
+          tone="muted"
+        />
       </div>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_360px]">
-        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
-          <CardContent className="p-5">
-            <h2 className="text-xl font-semibold">All approvals</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Every deliverable sent for client approval.
-            </p>
+      <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <DashboardPanel
+          title="Approval queue"
+          description="Every client decision grouped by workflow state."
+        >
+          <div className="mb-5 flex gap-2 overflow-x-auto pb-1">
+            {statusTabs.map((tab) => (
+              <Link
+                key={tab.value}
+                href={getTabHref(tab.value)}
+                className={cn(
+                  "inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition-colors",
+                  statusFilter === tab.value
+                    ? "border-black bg-black text-white"
+                    : "border-black/10 bg-[#f7f7f5] text-black/65 hover:bg-white"
+                )}
+              >
+                {tab.label}
+                <span className={cn(
+                  "rounded-full px-1.5 py-0.5 text-[11px]",
+                  statusFilter === tab.value ? "bg-white/15 text-white" : "bg-white text-black/50"
+                )}>
+                  {tabCounts[tab.value as keyof typeof tabCounts]}
+                </span>
+              </Link>
+            ))}
+          </div>
 
-            {approvals.length === 0 ? (
-              <div className="py-16 text-center">
-                <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-black/[0.04]">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-black/30"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
-                </div>
-                <h3 className="text-lg font-semibold">No approvals yet</h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Approval requests are created from project pages after uploading a deliverable.
-                </p>
-                <Link href="/dashboard/projects" className="mt-5 inline-flex">
-                  <Button className="rounded-full">Go to projects</Button>
-                </Link>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Deliverable</TableHead>
-                    <TableHead>Client</TableHead>
-                    <TableHead>Project</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Sent</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-
-                <TableBody>
-                  {approvals.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell className="font-medium">{item.title}</TableCell>
-                      <TableCell>
-                        {item.projects?.clients?.name ?? "No client"}
-                      </TableCell>
-                      <TableCell>
-                        {item.projects?.name ?? "Unknown project"}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={`rounded-full ${getStatusClass(formatStatus(item.status))}`}
-                        >
-                          {formatStatus(item.status)}
+          {approvals.length === 0 ? (
+            <EmptyState
+              icon={Send}
+              title="No approval requests yet"
+              description="Upload a deliverable on a project, then request approval from the project workspace."
+              action={
+                <Button asChild className="rounded-full">
+                  <Link href="/dashboard/projects">Go to projects</Link>
+                </Button>
+              }
+            />
+          ) : visibleApprovals.length === 0 ? (
+            <EmptyState
+              compact
+              icon={BadgeCheck}
+              title="No approvals in this status"
+              description="Switch tabs to see the rest of the approval queue."
+            />
+          ) : (
+            <div className="grid gap-4 lg:grid-cols-2">
+              {visibleApprovals.map((item) => (
+                <Link
+                  key={item.id}
+                  href={item.projects ? `/dashboard/projects/${item.projects.id}?tab=approvals` : "/dashboard/approvals"}
+                  className={cn(
+                    "group rounded-2xl border bg-[#fafafa] p-4 transition-colors hover:bg-[#f4f4f2]",
+                    normalizeStatus(item.status) === "approved"
+                      ? "border-black/10"
+                      : "border-amber-200/80 bg-amber-50/30"
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <Badge
+                        variant="outline"
+                        className={`rounded-full ${getStatusClass(item.status)}`}
+                      >
+                        {formatStatus(item.status)}
+                      </Badge>
+                      {normalizeStatus(item.status) !== "approved" ? (
+                        <Badge variant="outline" className="ml-2 rounded-full border-black/10 bg-white text-black/65">
+                          Needs action
                         </Badge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {formatDate(item.created_at)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {item.projects ? (
-                          <Link href={`/dashboard/projects/${item.projects.id}`}>
-                            <Button variant="outline" className="h-9 rounded-full bg-white text-sm">
-                              Open
-                            </Button>
-                          </Link>
-                        ) : (
-                          <Button variant="outline" className="h-9 rounded-full bg-white text-sm" disabled>
-                            Open
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <div className="space-y-6">
-          <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
-            <CardContent className="p-5">
-              <h2 className="text-xl font-semibold">Approval workflow</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                How approvals work from start to finish.
-              </p>
-
-              <div className="mt-5 space-y-5">
-                {workflowSteps.map((step) => (
-                  <div key={step.step} className="flex gap-4">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black text-sm font-medium text-white">
-                      {step.step}
+                      ) : null}
+                      <h3 className="mt-3 font-semibold">{item.title}</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {item.projects?.name ?? "Unknown project"} · {item.projects?.clients?.name ?? "No client"}
+                      </p>
                     </div>
-                    <div>
-                      <p className="font-medium">{step.title}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">{step.description}</p>
+                    <ArrowUpRight className="size-4 shrink-0 text-black/35 transition-colors group-hover:text-black" />
+                  </div>
+                  <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+                    <div className="rounded-xl bg-white px-3 py-2 ring-1 ring-black/[0.06]">
+                      <p className="text-xs text-muted-foreground">Sent</p>
+                      <p className="mt-1 font-medium">{formatDate(item.created_at)}</p>
+                    </div>
+                    <div className="rounded-xl bg-white px-3 py-2 ring-1 ring-black/[0.06]">
+                      <p className="text-xs text-muted-foreground">Next action</p>
+                      <p className="mt-1 font-medium">{getNextAction(item)}</p>
                     </div>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                </Link>
+              ))}
+            </div>
+          )}
+        </DashboardPanel>
 
-          <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
-            <CardContent className="p-5">
-              <h2 className="text-xl font-semibold">Needs follow-up</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Approvals that need attention.
-              </p>
-
-              {pendingApprovals.length === 0 ? (
-                <div className="mt-5 py-8 text-center">
-                  <p className="text-sm text-muted-foreground">No follow-ups needed.</p>
+        <div className="space-y-6">
+          <DashboardPanel
+            title="How approvals work"
+            description="The delivery loop for client decisions."
+          >
+            <div className="space-y-4">
+              {workflowSteps.map((step) => (
+                <div key={step.step} className="flex gap-4 rounded-xl bg-[#f4f4f2] p-4">
+                  <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-black text-sm font-medium text-white">
+                    {step.step}
+                  </div>
+                  <div>
+                    <p className="font-medium">{step.title}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{step.description}</p>
+                  </div>
                 </div>
-              ) : (
-                <div className="mt-5 space-y-3">
-                  {pendingApprovals.slice(0, 5).map((item) => (
+              ))}
+            </div>
+          </DashboardPanel>
+
+          <DashboardPanel
+            title="Follow-up focus"
+            description="What should happen next."
+          >
+            {tabCounts.pending === 0 && tabCounts["needs-changes"] === 0 ? (
+              <EmptyState
+                compact
+                icon={BadgeCheck}
+                title="No follow-ups needed"
+                description="Pending approvals and requested changes will appear here."
+              />
+            ) : (
+              <div className="space-y-3">
+                {approvals
+                  .filter((item) => normalizeStatus(item.status) !== "approved")
+                  .slice(0, 5)
+                  .map((item) => (
                     <div key={item.id} className="rounded-xl bg-[#f4f4f2] p-4 text-sm leading-6">
                       <span className="font-medium">{item.projects?.name ?? "A project"}</span>
-                      <span className="text-muted-foreground"> - {item.title} not yet approved</span>
+                      <span className="text-muted-foreground"> · {getNextAction(item)}</span>
                     </div>
                   ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              </div>
+            )}
+          </DashboardPanel>
         </div>
       </div>
     </>

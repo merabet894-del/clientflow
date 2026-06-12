@@ -10,6 +10,7 @@ export type Project = {
   status: string
   progress: number
   portal_token: string
+  portal_shared_at: string | null
   created_at: string
   updated_at: string
   clients: { name: string; email: string | null; company: string | null } | null
@@ -22,15 +23,17 @@ function safeProgress(project: { status: string; progress: number | null }): num
   return project.progress ?? 10
 }
 
-export async function getProjects() {
-  const agency = await ensureAgencyForCurrentUser()
-  if (!agency) return []
+export async function getProjects(agencyId?: string) {
+  if (!agencyId) {
+    try { const a = await ensureAgencyForCurrentUser(); if (a) agencyId = a.id } catch { /* fail safe */ }
+  }
+  if (!agencyId) return []
 
   const supabase = await createSupabaseClient()
   const { data } = await supabase
     .from("projects")
     .select("*, clients(name, email, company)")
-    .eq("agency_id", agency.id)
+    .eq("agency_id", agencyId)
     .order("created_at", { ascending: false })
 
   return ((data ?? []) as (Omit<Project, "progress"> & { progress: number | null })[]).map((p) => ({
@@ -39,16 +42,18 @@ export async function getProjects() {
   })) as Project[]
 }
 
-export async function getProjectById(id: string) {
-  const agency = await ensureAgencyForCurrentUser()
-  if (!agency) return null
+export async function getProjectById(id: string, agencyId?: string) {
+  if (!agencyId) {
+    try { const a = await ensureAgencyForCurrentUser(); if (a) agencyId = a.id } catch { /* fail safe */ }
+  }
+  if (!agencyId) return null
 
   const supabase = await createSupabaseClient()
   const { data } = await supabase
     .from("projects")
     .select("*, clients(name, email, company, id)")
     .eq("id", id)
-    .eq("agency_id", agency.id)
+    .eq("agency_id", agencyId)
     .single()
 
   if (!data) return null
@@ -66,15 +71,17 @@ export type Comment = {
   created_at: string
 }
 
-export async function getProjectsByClientId(clientId: string) {
-  const agency = await ensureAgencyForCurrentUser()
-  if (!agency) return []
+export async function getProjectsByClientId(clientId: string, agencyId?: string) {
+  if (!agencyId) {
+    try { const a = await ensureAgencyForCurrentUser(); if (a) agencyId = a.id } catch { /* fail safe */ }
+  }
+  if (!agencyId) return []
 
   const supabase = await createSupabaseClient()
   const { data } = await supabase
     .from("projects")
     .select("*, clients(name, email, company)")
-    .eq("agency_id", agency.id)
+    .eq("agency_id", agencyId)
     .eq("client_id", clientId)
     .order("created_at", { ascending: false })
 
@@ -94,10 +101,7 @@ export type Approval = {
   created_at: string
 }
 
-export async function getCommentsByProjectId(projectId: string) {
-  const agency = await ensureAgencyForCurrentUser()
-  if (!agency) return []
-
+export async function getCommentsByProjectId(projectId: string, _agencyId?: string) {
   const supabase = await createSupabaseClient()
   const { data } = await supabase
     .from("comments")
@@ -108,10 +112,7 @@ export async function getCommentsByProjectId(projectId: string) {
   return (data ?? []) as Comment[]
 }
 
-export async function getApprovalsByProjectId(projectId: string) {
-  const agency = await ensureAgencyForCurrentUser()
-  if (!agency) return []
-
+export async function getApprovalsByProjectId(projectId: string, _agencyId?: string) {
   const supabase = await createSupabaseClient()
   const { data } = await supabase
     .from("approvals")

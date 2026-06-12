@@ -1,7 +1,9 @@
 import Link from "next/link"
+import { BadgeCheck, Clock3, FileUp, Files, FolderKanban, Plus, User } from "lucide-react"
+import { notFound } from "next/navigation"
+
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import {
   Table,
   TableBody,
@@ -10,16 +12,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  DashboardPageHeader,
+  DashboardPanel,
+  DetailItem,
+  EmptyState,
+  MetricCard,
+} from "@/components/dashboard/dashboard-ui"
+import { ensureAgencyForCurrentUser } from "@/lib/actions/workspace"
 import { getClientById } from "@/lib/actions/clients"
 import { getProjectsByClientId, getCommentsByProjectId, getApprovalsByProjectId } from "@/lib/actions/projects"
 import { getProjectFiles } from "@/lib/actions/files"
-import { notFound } from "next/navigation"
-
-function getStatusClass(status: string) {
-  if (status === "Waiting approval") return "border-amber-200 bg-amber-50 text-amber-700"
-  if (status === "Client feedback") return "border-blue-200 bg-blue-50 text-blue-700"
-  return "border-black/15 bg-white text-black"
-}
 
 function formatStatus(status: string) {
   switch (status) {
@@ -33,9 +36,25 @@ function formatStatus(status: string) {
 }
 
 function getProjectStatusClass(status: string) {
-  if (status === "completed") return "border-emerald-200 bg-emerald-50 text-emerald-700"
+  if (status === "completed" || status === "approved") return "border-emerald-200 bg-emerald-50 text-emerald-700"
   if (status === "waiting approval") return "border-amber-200 bg-amber-50 text-amber-700"
   if (status === "client feedback") return "border-blue-200 bg-blue-50 text-blue-700"
+  return "border-black/15 bg-white text-black"
+}
+
+function formatClientStatus(status: string) {
+  switch (status) {
+    case "active": return "Active"
+    case "needs_feedback": return "Needs feedback"
+    case "needs attention": return "Needs attention"
+    case "completed": return "Completed"
+    default: return status.charAt(0).toUpperCase() + status.slice(1)
+  }
+}
+
+function getClientStatusClass(status: string) {
+  if (status === "completed") return "border-emerald-200 bg-emerald-50 text-emerald-700"
+  if (status === "needs_feedback" || status === "needs attention") return "border-blue-200 bg-blue-50 text-blue-700"
   return "border-black/15 bg-white text-black"
 }
 
@@ -51,21 +70,27 @@ function formatDate(dateStr: string) {
   return date.toLocaleDateString()
 }
 
+function clampProgress(value: number) {
+  return Math.max(0, Math.min(value, 100))
+}
+
 export default async function ClientDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const client = await getClientById(id)
+  const agency = await ensureAgencyForCurrentUser().catch(() => null)
+  const agencyId = agency?.id
+  const client = await getClientById(id, agencyId)
 
   if (!client) {
     notFound()
   }
 
-  const projects = await getProjectsByClientId(id)
+  const projects = await getProjectsByClientId(id, agencyId)
 
-  const activeProjects = projects.filter((p) => p.status !== "completed").length
+  const activeProjects = projects.filter((p) => p.status !== "completed" && p.status !== "approved").length
   const waitingApprovals = projects.filter((p) => p.status === "waiting approval").length
 
   let totalFiles = 0
@@ -73,16 +98,16 @@ export default async function ClientDetailPage({
 
   for (const project of projects) {
     const [comments, approvals, projectFiles] = await Promise.all([
-      getCommentsByProjectId(project.id),
-      getApprovalsByProjectId(project.id),
-      getProjectFiles(project.id),
+      getCommentsByProjectId(project.id, agencyId),
+      getApprovalsByProjectId(project.id, agencyId),
+      getProjectFiles(project.id, agencyId),
     ])
 
     totalFiles += projectFiles.length
 
     for (const comment of comments) {
       activityItems.push({
-        id: comment.id,
+        id: `comment-${comment.id}`,
         text: `${comment.author_name ?? comment.author_type} left feedback on ${project.name}`,
         date: comment.created_at,
       })
@@ -90,7 +115,7 @@ export default async function ClientDetailPage({
 
     for (const approval of approvals) {
       activityItems.push({
-        id: approval.id,
+        id: `approval-${approval.id}`,
         text: approval.approved_at
           ? `${approval.title} was approved on ${project.name}`
           : `${approval.title} is waiting approval on ${project.name}`,
@@ -100,7 +125,7 @@ export default async function ClientDetailPage({
 
     for (const file of projectFiles) {
       activityItems.push({
-        id: file.id,
+        id: `file-${file.id}`,
         text: `${file.name} uploaded to ${project.name}`,
         date: file.created_at,
       })
@@ -113,98 +138,102 @@ export default async function ClientDetailPage({
 
   return (
     <>
-      <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <Badge variant="outline" className="rounded-full bg-white">
-            Client profile
-          </Badge>
-          <h1 className="mt-4 text-3xl font-semibold tracking-tight md:text-4xl">
-            {client.name}
-          </h1>
-          <p className="mt-2 text-muted-foreground">
-            Manage client information, active projects, portal access, and recent activity.
-          </p>
-        </div>
+      <DashboardPageHeader
+        badge="Client profile"
+        title={client.name}
+        description={`${client.company ?? "Client account"} · ${client.email ?? "No email on file"}`}
+        actions={
+          <>
+            <Button asChild variant="outline" className="rounded-full bg-white">
+              <Link href="/dashboard/files">
+                <FileUp className="size-4" />
+                Upload deliverable
+              </Link>
+            </Button>
+            <Button asChild className="rounded-full">
+              <Link href="/dashboard/projects">
+                <Plus className="size-4" />
+                New project
+              </Link>
+            </Button>
+          </>
+        }
+      />
 
-        <div className="flex gap-3">
-          <Button variant="outline" className="rounded-full bg-white">
-            Send invite
-          </Button>
-          <Link href="/dashboard/projects">
-            <Button className="rounded-full">New project</Button>
-          </Link>
-        </div>
-      </header>
-
-      <div className="mt-8 grid gap-4 md:grid-cols-4">
-        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Active projects</p>
-            <p className="mt-3 text-3xl font-semibold">{activeProjects}</p>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Waiting approvals</p>
-            <p className="mt-3 text-3xl font-semibold">{waitingApprovals}</p>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Shared files</p>
-            <p className="mt-3 text-3xl font-semibold">{totalFiles}</p>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
-          <CardContent className="p-5">
-            <p className="text-sm text-muted-foreground">Last activity</p>
-            <p className="mt-3 text-3xl font-semibold">
-              {lastActivity ? formatDate(lastActivity) : "—"}
-            </p>
-          </CardContent>
-        </Card>
+      <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          label="Client status"
+          value={
+            <Badge
+              variant="outline"
+              className={`rounded-full ${getClientStatusClass(client.status)}`}
+            >
+              {formatClientStatus(client.status)}
+            </Badge>
+          }
+          description="Account health"
+          icon={User}
+        />
+        <MetricCard
+          label="Active projects"
+          value={activeProjects}
+          description="Not completed yet"
+          icon={FolderKanban}
+        />
+        <MetricCard
+          label="Waiting approvals"
+          value={waitingApprovals}
+          description="Needs client action"
+          icon={Clock3}
+          tone="warning"
+        />
+        <MetricCard
+          label="Shared files"
+          value={totalFiles}
+          description="Across linked projects"
+          icon={Files}
+          tone="muted"
+        />
       </div>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_360px]">
-        <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
-          <CardContent className="p-5">
-            <div className="mb-5 flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-semibold">Client projects</h2>
-                <p className="text-sm text-muted-foreground">
-                  Projects linked to this client.
-                </p>
-              </div>
-              <Link href="/dashboard/projects">
-                <Button variant="outline" className="rounded-full bg-white">
-                  View all
+      <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <DashboardPanel
+          title="Client projects"
+          description="Projects linked to this client."
+          action={
+            <Button asChild variant="outline" className="rounded-full bg-white">
+              <Link href="/dashboard/projects">View all</Link>
+            </Button>
+          }
+        >
+          {projects.length === 0 ? (
+            <EmptyState
+              icon={FolderKanban}
+              title="No projects yet"
+              description="Create a project for this client to start tracking deliverables."
+              action={
+                <Button asChild className="rounded-full">
+                  <Link href="/dashboard/projects">New project</Link>
                 </Button>
-              </Link>
-            </div>
+              }
+            />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Project</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Progress</TableHead>
+                  <TableHead className="text-right">Updated</TableHead>
+                </TableRow>
+              </TableHeader>
 
-            {projects.length === 0 ? (
-              <div className="py-12 text-center">
-                <p className="text-muted-foreground">
-                  No projects yet. Create a project for this client to get started.
-                </p>
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Project</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Progress</TableHead>
-                    <TableHead className="text-right">Updated</TableHead>
-                  </TableRow>
-                </TableHeader>
+              <TableBody>
+                {projects.map((project) => {
+                  const progress = clampProgress(project.progress)
 
-                <TableBody>
-                  {projects.map((project) => (
-                    <TableRow key={project.id}>
+                  return (
+                    <TableRow key={project.id} className="hover:bg-[#f7f7f5]">
                       <TableCell className="font-medium">
                         <Link
                           href={`/dashboard/projects/${project.id}`}
@@ -221,86 +250,95 @@ export default async function ClientDetailPage({
                           {formatStatus(project.status)}
                         </Badge>
                       </TableCell>
-                      <TableCell>{project.progress}%</TableCell>
+                      <TableCell>
+                        <div className="flex min-w-32 items-center gap-3">
+                          <div className="h-2 w-24 rounded-full bg-black/[0.08]">
+                            <div
+                              className="h-full rounded-full bg-black"
+                              style={{ width: `${progress}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-muted-foreground">{progress}%</span>
+                        </div>
+                      </TableCell>
                       <TableCell className="text-right text-muted-foreground">
                         {formatDate(project.updated_at)}
                       </TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </DashboardPanel>
 
         <div className="space-y-6">
-          <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
-            <CardContent className="p-5">
-              <h2 className="text-xl font-semibold">Client info</h2>
+          <DashboardPanel title="Client info">
+            <div className="space-y-3">
+              <DetailItem label="Contact" value={client.name} />
+              <DetailItem label="Email" value={client.email ?? "-"} />
+              <DetailItem label="Company" value={client.company ?? "-"} />
+              <DetailItem label="Status" value={formatClientStatus(client.status)} />
+              <DetailItem label="Last activity" value={lastActivity ? formatDate(lastActivity) : "-"} />
+              <DetailItem label="Created" value={formatDate(client.created_at)} />
+            </div>
+          </DashboardPanel>
 
-              <div className="mt-5 space-y-4 text-sm">
-                <div>
-                  <p className="text-muted-foreground">Contact</p>
-                  <p className="mt-1 font-medium">{client.name}</p>
-                </div>
-
-                <div>
-                  <p className="text-muted-foreground">Email</p>
-                  <p className="mt-1 font-medium">
-                    {client.email ?? "—"}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-muted-foreground">Company</p>
-                  <p className="mt-1 font-medium">
-                    {client.company ?? "—"}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
-            <CardContent className="p-5">
-              <h2 className="text-xl font-semibold">Portal access</h2>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Share the client portal so {client.name} can review progress,
-                files, feedback, and approvals.
-              </p>
-
-              <Button className="mt-5 w-full rounded-full">
-                Copy portal link
-              </Button>
-            </CardContent>
-          </Card>
+          <DashboardPanel
+            title="Quick actions"
+            description="Move this client workspace forward."
+          >
+            <div className="grid gap-3">
+              {[
+                { label: "Create project", href: "/dashboard/projects", icon: FolderKanban },
+                { label: "Upload deliverable", href: "/dashboard/files", icon: FileUp },
+                { label: "Review approvals", href: "/dashboard/approvals", icon: BadgeCheck },
+              ].map((action) => {
+                const Icon = action.icon
+                return (
+                  <Button
+                    key={action.label}
+                    asChild
+                    variant="outline"
+                    className="h-auto justify-start rounded-xl bg-[#f7f7f5] px-4 py-3"
+                  >
+                    <Link href={action.href}>
+                      <Icon className="size-4" />
+                      {action.label}
+                    </Link>
+                  </Button>
+                )
+              })}
+            </div>
+            <div className="mt-4 rounded-xl bg-[#f4f4f2] p-4 text-sm leading-6 text-muted-foreground">
+              Project portal links are generated from individual project workspaces.
+            </div>
+          </DashboardPanel>
         </div>
       </div>
 
-      <Card className="mt-6 rounded-2xl border-black/15 bg-white shadow-sm">
-        <CardContent className="p-5">
-          <h2 className="text-xl font-semibold">Recent activity</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Latest updates from this client workspace.
-          </p>
-
-          {recentActivity.length === 0 ? (
-            <div className="py-8 text-center">
-              <p className="text-sm text-muted-foreground">
-                No activity yet. Create a project and share the portal to get started.
-              </p>
-            </div>
-          ) : (
-            <div className="mt-5 grid gap-3 md:grid-cols-2">
-              {recentActivity.map((item) => (
-                <div key={item.id} className="rounded-2xl bg-[#f4f4f2] p-4 text-sm">
-                  {item.text}
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <DashboardPanel
+        className="mt-6"
+        title="Recent activity"
+        description="Latest updates from this client workspace."
+      >
+        {recentActivity.length === 0 ? (
+          <EmptyState
+            compact
+            icon={User}
+            title="No activity yet"
+            description="Create a project and share files to start building the activity history."
+          />
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2">
+            {recentActivity.map((item) => (
+              <div key={item.id} className="rounded-xl bg-[#f4f4f2] p-4 text-sm leading-6">
+                {item.text}
+              </div>
+            ))}
+          </div>
+        )}
+      </DashboardPanel>
     </>
   )
 }

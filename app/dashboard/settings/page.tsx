@@ -1,255 +1,446 @@
+import Link from "next/link"
+import {
+  BadgeCheck,
+  Bell,
+  BriefcaseBusiness,
+  CalendarDays,
+  CreditCard,
+  Files,
+  FolderKanban,
+  Mail,
+  Palette,
+  Settings,
+  ShieldAlert,
+  User,
+  Users,
+} from "lucide-react"
+
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
+  DashboardPageHeader,
+  DashboardPanel,
+  DetailItem,
+  MetricCard,
+} from "@/components/dashboard/dashboard-ui"
+import { createClient } from "@/lib/supabase/server"
+import {
+  ensureAgencyForCurrentUser,
+  getDashboardStats,
+  type Agency,
+} from "@/lib/actions/workspace"
+import {
+  getBillingOverview,
+  getStorageUsageLabel,
+  getUsageLabel,
+  type BillingOverview,
+} from "@/lib/actions/billing"
+import { WaitlistDialog } from "@/components/billing/waitlist-dialog"
 
-const notifications = [
-  { label: "Client approval reminders", value: "Enabled" },
-  { label: "New feedback alerts", value: "Enabled" },
-  { label: "File upload notifications", value: "Enabled" },
-  { label: "Weekly client summary", value: "Disabled" },
-]
+function formatDate(dateStr?: string | null) {
+  if (!dateStr) return "-"
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(dateStr))
+}
 
-export default function SettingsPage() {
+function formatWebsite(website: string | null) {
+  if (!website) return "-"
+  return website.replace(/^https?:\/\//, "")
+}
+
+function getOwnerName(metadata: Record<string, unknown> | undefined) {
+  const fullName = metadata?.full_name
+  const name = metadata?.name
+
+  if (typeof fullName === "string" && fullName.trim()) return fullName
+  if (typeof name === "string" && name.trim()) return name
+  return "Workspace owner"
+}
+
+function getPortalPreview(agency: Agency | null) {
+  if (!agency) return "Create an agency to generate a client portal preview."
+  return `${agency.name} client portal`
+}
+
+function ComingSoonBadge() {
   return (
-    <>
-      <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <Badge variant="outline" className="rounded-full bg-white">
-            Settings
-          </Badge>
-          <h1 className="mt-4 text-3xl font-semibold tracking-tight md:text-4xl">
-            Workspace settings
-          </h1>
-          <p className="mt-2 text-muted-foreground">
-            Manage agency profile, portal branding, notifications, and plan settings.
-          </p>
+    <Badge variant="outline" className="rounded-full bg-[#f7f7f5] text-black/55">
+      Editing coming soon
+    </Badge>
+  )
+}
+
+function formatStatusLabel(value: string) {
+  return value
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ")
+}
+
+function getUsagePercent(used: number, limit: number | null) {
+  if (limit === null || limit <= 0) return 12
+  return Math.min(100, Math.round((used / limit) * 100))
+}
+
+function getBarColor(percent: number, limit: number | null) {
+  if (limit === null) return "bg-black"
+  if (percent >= 100) return "bg-red-500"
+  if (percent >= 80) return "bg-amber-500"
+  return "bg-black"
+}
+
+function getTextColor(percent: number, limit: number | null) {
+  if (limit === null) return "text-muted-foreground"
+  if (percent >= 100) return "text-red-600"
+  if (percent >= 80) return "text-amber-700"
+  return "text-muted-foreground"
+}
+
+function PlanUsageRow({
+  label,
+  used,
+  limit,
+  usageLabel,
+}: {
+  label: string
+  used: number
+  limit: number | null
+  usageLabel: string
+}) {
+  const percent = getUsagePercent(used, limit)
+  return (
+    <div className="rounded-2xl border border-black/10 bg-white p-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-medium">{label}</p>
+        <p className={`text-xs ${getTextColor(percent, limit)}`}>
+          {usageLabel}
+        </p>
+      </div>
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/[0.08]">
+        <div
+          className={`h-full rounded-full transition-colors ${getBarColor(percent, limit)}`}
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+    </div>
+  )
+}
+
+function PlanOverview({ billing }: { billing: BillingOverview | null }) {
+  if (!billing) return null
+
+  return (
+    <DashboardPanel
+      className="mt-8"
+      title="Billing plan"
+      description="Your plan, usage, and subscription details."
+    >
+      <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+        <div className="rounded-2xl border border-black/10 bg-[#f7f7f5] p-5">
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-xl bg-black text-white">
+              <CreditCard className="size-4" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Current plan</p>
+              <p className="text-2xl font-semibold tracking-tight">{billing.planName}</p>
+            </div>
+          </div>
+          <div className="mt-5 grid gap-3 text-sm">
+            <DetailItem label="Subscription status" value={formatStatusLabel(billing.subscriptionStatus)} />
+            <DetailItem label="Trial ends" value={formatDate(billing.trialEndsAt)} />
+            <DetailItem label="Current period end" value={formatDate(billing.currentPeriodEnd)} />
+          </div>
+          <div className="mt-5 space-y-3">
+            {billing.plan !== "agency" && billing.planInterest && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-center text-sm font-medium text-amber-800">
+                Interested in {billing.planInterest === "pro" ? "Pro" : "Custom"}
+              </div>
+            )}
+            {billing.plan === "agency" ? (
+              <Button className="w-full rounded-full" disabled>
+                Current plan
+              </Button>
+            ) : (
+              <WaitlistDialog planName={billing.planName} />
+            )}
+            <p className="text-center text-xs text-muted-foreground">
+              Billing is handled manually for now.
+            </p>
+          </div>
         </div>
 
-        <Button className="rounded-full">Save changes</Button>
-      </header>
+        <div className="grid gap-3 md:grid-cols-2">
+          <PlanUsageRow
+            label="Clients"
+            used={billing.usage.clients}
+            limit={billing.limits.max_clients}
+            usageLabel={getUsageLabel(billing.usage.clients, billing.limits.max_clients)}
+          />
+          <PlanUsageRow
+            label="Projects"
+            used={billing.usage.projects}
+            limit={billing.limits.max_projects}
+            usageLabel={getUsageLabel(billing.usage.projects, billing.limits.max_projects)}
+          />
+          <PlanUsageRow
+            label="Team members"
+            used={billing.usage.teamMembers}
+            limit={billing.limits.max_team_members}
+            usageLabel={getUsageLabel(billing.usage.teamMembers, billing.limits.max_team_members)}
+          />
+          <PlanUsageRow
+            label="Storage"
+            used={billing.usage.storageMb}
+            limit={billing.limits.max_storage_mb}
+            usageLabel={getStorageUsageLabel(billing.usage.storageMb, billing.limits.max_storage_mb)}
+          />
+        </div>
+      </div>
+    </DashboardPanel>
+  )
+}
 
-      <div className="mt-8 grid gap-6 xl:grid-cols-[1fr_360px]">
+export default async function SettingsPage() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  const agency = await ensureAgencyForCurrentUser().catch(() => null)
+  const agencyId = agency?.id
+  const [stats, billing] = await Promise.all([
+    getDashboardStats(agencyId),
+    getBillingOverview(),
+  ])
+
+  const ownerName = getOwnerName(user?.user_metadata)
+  const contactEmail = agency?.contact_email ?? user?.email ?? "-"
+  const portalPreview = getPortalPreview(agency)
+
+  return (
+    <>
+      <DashboardPageHeader
+        badge="Settings"
+        title="Workspace settings"
+        description="Manage the agency workspace, client portal identity, notifications, usage, and team readiness."
+        actions={
+          <>
+            <Button asChild variant="outline" className="rounded-full bg-white">
+              <Link href="/dashboard/clients">Manage clients</Link>
+            </Button>
+            <Button asChild className="rounded-full">
+              <Link href="/dashboard/projects">Manage projects</Link>
+            </Button>
+          </>
+        }
+      />
+
+      <PlanOverview billing={billing} />
+
+      <div className="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-6">
-          <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
-            <CardContent className="p-5">
-              <h2 className="text-xl font-semibold">Agency profile</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Your agency details shown across portals and communications.
-              </p>
+          <div id="workspace" className="scroll-mt-24">
+            <DashboardPanel
+              title="Agency profile"
+              description="Details loaded from the agency connected to your signed-in account."
+              action={<ComingSoonBadge />}
+            >
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="space-y-2">
+                  <span className="text-xs font-medium text-muted-foreground">Agency name</span>
+                  <Input value={agency?.name ?? "-"} disabled className="bg-[#f7f7f5]" />
+                </label>
+                <label className="space-y-2">
+                  <span className="text-xs font-medium text-muted-foreground">Website</span>
+                  <Input value={formatWebsite(agency?.website ?? null)} disabled className="bg-[#f7f7f5]" />
+                </label>
+                <label className="space-y-2">
+                  <span className="text-xs font-medium text-muted-foreground">Contact email</span>
+                  <Input value={contactEmail} disabled className="bg-[#f7f7f5]" />
+                </label>
+                <DetailItem label="Created" value={formatDate(agency?.created_at)} />
+              </div>
+            </DashboardPanel>
+          </div>
 
-              <div className="mt-5 grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="agency-name">Agency name</Label>
-                  <Input
-                    id="agency-name"
-                    defaultValue="ClientFlow Agency"
-                    className="rounded-xl bg-[#f7f7f5]"
-                  />
+          <div id="account" className="scroll-mt-24">
+            <DashboardPanel
+              title="Account"
+              description="Signed-in user details from Supabase Auth."
+            >
+              <div className="grid gap-3 md:grid-cols-2">
+                <DetailItem label="Owner" value={ownerName} />
+                <DetailItem label="Email" value={user?.email ?? "-"} />
+                <DetailItem label="Last sign in" value={formatDate(user?.last_sign_in_at)} />
+                <DetailItem label="User ID" value={user?.id ?? "-"} mono />
+              </div>
+            </DashboardPanel>
+          </div>
+
+          <div id="portal-branding" className="scroll-mt-24">
+            <DashboardPanel
+              title="Portal branding"
+              description="Client-facing portal identity inferred from the current agency profile."
+              action={<ComingSoonBadge />}
+            >
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+                <div className="rounded-2xl border border-black/10 bg-[#f7f7f5] p-5">
+                  <p className="text-sm text-muted-foreground">Portal title</p>
+                  <p className="mt-2 text-2xl font-semibold">{portalPreview}</p>
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    Client portals use project-specific links generated from your live project data.
+                  </p>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="website">Website</Label>
-                  <Input
-                    id="website"
-                    defaultValue="https://clientflow.co"
-                    className="rounded-xl bg-[#f7f7f5]"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Contact email</Label>
-                  <Input
-                    id="email"
-                    defaultValue="hello@clientflow.co"
-                    className="rounded-xl bg-[#f7f7f5]"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="timezone">Timezone</Label>
-                  <Select defaultValue="UTC">
-                    <SelectTrigger id="timezone" className="w-full rounded-xl bg-[#f7f7f5]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="UTC">UTC</SelectItem>
-                      <SelectItem value="Europe/Paris">Europe/Paris</SelectItem>
-                      <SelectItem value="Africa/Algiers">Africa/Algiers</SelectItem>
-                      <SelectItem value="America/New_York">America/New_York</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="rounded-2xl border border-black/10 bg-white p-5">
+                  <div className="flex size-10 items-center justify-center rounded-xl bg-black text-white">
+                    <Palette className="size-4" />
+                  </div>
+                  <p className="mt-4 text-sm font-medium">Brand controls</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Logo, accent color, and portal copy controls will live here.
+                  </p>
                 </div>
               </div>
+            </DashboardPanel>
+          </div>
 
-              <Button className="mt-5 rounded-full">Update profile</Button>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
-            <CardContent className="p-5">
-              <h2 className="text-xl font-semibold">Portal branding</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Customise the look and feel of client portals.
-              </p>
-
-              <div className="mt-5 grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="portal-name">Portal name</Label>
-                  <Input
-                    id="portal-name"
-                    defaultValue="ClientFlow Portal"
-                    className="rounded-xl bg-[#f7f7f5]"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="primary-color">Primary color</Label>
-                  <Input
-                    id="primary-color"
-                    defaultValue="Black"
-                    className="rounded-xl bg-[#f7f7f5]"
-                  />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="support-email">Support email</Label>
-                  <Input
-                    id="support-email"
-                    defaultValue="support@clientflow.co"
-                    className="rounded-xl bg-[#f7f7f5]"
-                  />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="welcome-message">Welcome message</Label>
-                  <Textarea
-                    id="welcome-message"
-                    defaultValue="Welcome to your client portal. Review project progress, files, feedback, and approvals in one place."
-                    className="min-h-24 rounded-2xl bg-[#f7f7f5]"
-                  />
-                </div>
-              </div>
-
-              <Button className="mt-5 rounded-full">Save branding</Button>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
-            <CardContent className="p-5">
-              <h2 className="text-xl font-semibold">Notifications</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Control which alerts are sent to your team.
-              </p>
-
-              <div className="mt-5 space-y-3">
-                {notifications.map((item) => (
-                  <div
-                    key={item.label}
-                    className="flex items-center justify-between rounded-xl bg-[#f4f4f2] px-4 py-3"
-                  >
-                    <span className="text-sm font-medium">{item.label}</span>
-                    <Badge
-                      variant="outline"
-                      className={`rounded-full ${
-                        item.value === "Enabled"
-                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                          : "border-black/15 bg-white text-muted-foreground"
-                      }`}
-                    >
-                      {item.value}
-                    </Badge>
+          <div id="notifications" className="scroll-mt-24">
+            <DashboardPanel
+              title="Notifications"
+              description="Read-only notification preferences for this workspace."
+              action={<ComingSoonBadge />}
+            >
+              <div className="grid gap-3 md:grid-cols-2">
+                {[
+                  ["Approval requests", "Enabled"],
+                  ["Client feedback", "Enabled"],
+                  ["File delivery", "Enabled"],
+                  ["Weekly workspace digest", "Coming soon"],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex items-center justify-between gap-4 rounded-xl bg-[#f4f4f2] px-4 py-3 text-sm">
+                    <span className="font-medium">{label}</span>
+                    <span className="text-muted-foreground">{value}</span>
                   </div>
                 ))}
               </div>
-            </CardContent>
-          </Card>
-        </div>
+            </DashboardPanel>
+          </div>
 
-        <div className="space-y-6">
-          <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
-            <CardContent className="p-5">
-              <h2 className="text-xl font-semibold">Current plan</h2>
-
-              <div className="mt-4">
-                <p className="text-2xl font-semibold">Pro</p>
-                <p className="text-sm text-muted-foreground">$49 / month</p>
+          <div id="team" className="scroll-mt-24">
+            <DashboardPanel
+              title="Team"
+              description="Invite collaborators into this agency workspace."
+              action={<ComingSoonBadge />}
+            >
+              <div className="rounded-2xl border border-dashed border-black/15 bg-[#f7f7f5] p-6 text-sm leading-6 text-muted-foreground">
+                Team seats, roles, and project permissions are not editable yet. The signed-in account remains the workspace owner.
               </div>
+            </DashboardPanel>
+          </div>
 
-              <div className="mt-5 space-y-3 text-sm">
-                <div className="flex items-center gap-3">
-                  <div className="h-1.5 w-1.5 rounded-full bg-black" />
-                  <span>Unlimited clients</span>
+          <div id="danger-zone" className="scroll-mt-24">
+            <DashboardPanel
+              title="Danger zone"
+              description="Sensitive workspace controls."
+              action={<ComingSoonBadge />}
+            >
+              <div className="flex flex-col gap-4 rounded-2xl border border-rose-200 bg-rose-50 p-5 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-medium text-rose-800">Workspace deletion unavailable</p>
+                  <p className="mt-1 text-sm text-rose-700/80">
+                    Destructive workspace actions are intentionally disabled until account management is implemented.
+                  </p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="h-1.5 w-1.5 rounded-full bg-black" />
-                  <span>Unlimited projects</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="h-1.5 w-1.5 rounded-full bg-black" />
-                  <span>Approval workflow</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="h-1.5 w-1.5 rounded-full bg-black" />
-                  <span>Client portal links</span>
-                </div>
-              </div>
-
-              <Button className="mt-5 w-full rounded-full">Manage plan</Button>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
-            <CardContent className="p-5">
-              <h2 className="text-xl font-semibold">Workspace health</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Overview of your workspace usage.
-              </p>
-
-              <div className="mt-5 space-y-3">
-                <div className="flex items-center justify-between rounded-xl bg-[#f4f4f2] px-4 py-3 text-sm">
-                  <span className="font-medium">Clients</span>
-                  <span className="text-muted-foreground">24</span>
-                </div>
-                <div className="flex items-center justify-between rounded-xl bg-[#f4f4f2] px-4 py-3 text-sm">
-                  <span className="font-medium">Projects</span>
-                  <span className="text-muted-foreground">38</span>
-                </div>
-                <div className="flex items-center justify-between rounded-xl bg-[#f4f4f2] px-4 py-3 text-sm">
-                  <span className="font-medium">Files</span>
-                  <span className="text-muted-foreground">126</span>
-                </div>
-                <div className="flex items-center justify-between rounded-xl bg-[#f4f4f2] px-4 py-3 text-sm">
-                  <span className="font-medium">Pending approvals</span>
-                  <span className="text-muted-foreground">7</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-2xl border-black/15 bg-white shadow-sm">
-            <CardContent className="p-5">
-              <h2 className="text-xl font-semibold">Danger zone</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Export workspace data or permanently delete workspace.
-              </p>
-
-              <div className="mt-5 flex flex-col gap-3">
-                <Button variant="outline" className="w-full rounded-full bg-white">
-                  Export data
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full rounded-full border-rose-300 bg-white text-rose-600 hover:bg-rose-50"
-                >
+                <Button variant="destructive" disabled className="rounded-full">
                   Delete workspace
                 </Button>
               </div>
-            </CardContent>
-          </Card>
+            </DashboardPanel>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <div id="workspace-usage" className="scroll-mt-24">
+            <DashboardPanel
+              title="Workspace usage"
+              description="Current live counts from workspace tables."
+            >
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+                <MetricCard
+                  label="Clients"
+                  value={stats.activeClients}
+                  description="Client profiles"
+                  icon={Users}
+                />
+                <MetricCard
+                  label="Projects"
+                  value={stats.totalProjects}
+                  description={`${stats.openProjects} open`}
+                  icon={FolderKanban}
+                  tone="info"
+                />
+                <MetricCard
+                  label="Files"
+                  value={stats.filesShared}
+                  description="Shared deliverables"
+                  icon={Files}
+                  tone="muted"
+                />
+                <MetricCard
+                  label="Waiting approvals"
+                  value={stats.waitingApprovals}
+                  description="Needs client action"
+                  icon={BadgeCheck}
+                  tone="warning"
+                />
+              </div>
+            </DashboardPanel>
+          </div>
+
+          <DashboardPanel
+            title="Workspace record"
+            description="Database identifiers for this workspace."
+          >
+            <div className="space-y-3">
+              <DetailItem label="Agency ID" value={agency?.id ?? "-"} mono />
+              <DetailItem label="Owner ID" value={agency?.owner_id ?? user?.id ?? "-"} mono />
+            </div>
+          </DashboardPanel>
+
+          <DashboardPanel
+            title="System readiness"
+            description="Current settings surfaces and data sources."
+          >
+            <div className="space-y-3">
+              {[
+                { icon: BriefcaseBusiness, label: "Agency profile", value: "Connected" },
+                { icon: User, label: "Account", value: "Supabase Auth" },
+                { icon: Bell, label: "Notifications", value: "Read-only" },
+                { icon: Settings, label: "Portal controls", value: "Coming soon" },
+                { icon: ShieldAlert, label: "Danger zone", value: "Disabled" },
+                { icon: CalendarDays, label: "Usage counts", value: "Live tables" },
+                { icon: Mail, label: "Contact email", value: "agency or user" },
+              ].map((item) => {
+                const Icon = item.icon
+                return (
+                  <div
+                    key={item.label}
+                    className="flex items-center justify-between gap-3 rounded-xl bg-[#f4f4f2] px-4 py-3 text-sm"
+                  >
+                    <span className="flex min-w-0 items-center gap-2 font-medium">
+                      <Icon className="size-4 shrink-0 text-black/45" />
+                      <span className="truncate">{item.label}</span>
+                    </span>
+                    <span className="shrink-0 text-muted-foreground">{item.value}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </DashboardPanel>
         </div>
       </div>
     </>

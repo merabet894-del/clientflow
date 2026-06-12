@@ -24,16 +24,18 @@ export type ApprovalStats = {
   averageApprovalTime: string
 }
 
-export async function getApprovals() {
-  const agency = await ensureAgencyForCurrentUser()
-  if (!agency) return []
+export async function getApprovals(agencyId?: string) {
+  if (!agencyId) {
+    try { const a = await ensureAgencyForCurrentUser(); if (a) agencyId = a.id } catch { /* fail safe */ }
+  }
+  if (!agencyId) return []
 
   const supabase = await createSupabaseClient()
 
   const { data: projectRows } = await supabase
     .from("projects")
     .select("id")
-    .eq("agency_id", agency.id)
+    .eq("agency_id", agencyId)
 
   const projectIds = (projectRows ?? []).map((p) => p.id)
   if (projectIds.length === 0) return []
@@ -47,10 +49,12 @@ export async function getApprovals() {
   return (data ?? []) as unknown as ApprovalWithProject[]
 }
 
-export async function getApprovalStats() {
-  const agency = await ensureAgencyForCurrentUser()
-  if (!agency) {
-    return { waitingApproval: 0, approvedThisMonth: 0, feedbackRequested: 0, averageApprovalTime: "—" }
+export async function getApprovalStats(agencyId?: string) {
+  if (!agencyId) {
+    try { const a = await ensureAgencyForCurrentUser(); if (a) agencyId = a.id } catch { /* fail safe */ }
+  }
+  if (!agencyId) {
+    return { waitingApproval: 0, approvedThisMonth: 0, feedbackRequested: 0, averageApprovalTime: "-" }
   }
 
   const supabase = await createSupabaseClient()
@@ -58,7 +62,7 @@ export async function getApprovalStats() {
   const { data: projectRows } = await supabase
     .from("projects")
     .select("id")
-    .eq("agency_id", agency.id)
+    .eq("agency_id", agencyId)
 
   const projectIds = (projectRows ?? []).map((p) => p.id)
 
@@ -85,7 +89,7 @@ export async function getApprovalStats() {
       supabase
         .from("projects")
         .select("*", { count: "exact", head: true })
-        .eq("agency_id", agency.id)
+        .eq("agency_id", agencyId)
         .eq("status", "client feedback"),
     ])
 
@@ -93,6 +97,6 @@ export async function getApprovalStats() {
     waitingApproval: waitingCount ?? 0,
     approvedThisMonth: approvedThisMonth ?? 0,
     feedbackRequested: feedbackCount ?? 0,
-    averageApprovalTime: "—",
+    averageApprovalTime: "-",
   }
 }

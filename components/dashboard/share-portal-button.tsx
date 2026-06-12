@@ -4,12 +4,10 @@ import { SharePortalPopover } from "@/components/dashboard/share-portal-popover"
 
 export function SharePortalButton({
   portalToken,
-  agencyId,
-  userId,
+  projectId,
 }: {
   portalToken: string
-  agencyId?: string | null
-  userId?: string | null
+  projectId: string
 }) {
-  return <SharePortalPopover portalToken={portalToken} agencyId={agencyId} userId={userId} />
+  return <SharePortalPopover portalToken={portalToken} projectId={projectId} />
 }

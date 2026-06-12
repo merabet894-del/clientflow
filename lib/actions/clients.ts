@@ -11,30 +11,34 @@ export type Client = {
   created_at: string
 }
 
-export async function getClients(): Promise<Client[]> {
-  const agency = await ensureAgencyForCurrentUser()
-  if (!agency) return []
+export async function getClients(agencyId?: string): Promise<Client[]> {
+  if (!agencyId) {
+    try { const a = await ensureAgencyForCurrentUser(); if (a) agencyId = a.id } catch { /* fail safe */ }
+  }
+  if (!agencyId) return []
 
   const supabase = await createSupabaseClient()
   const { data } = await supabase
     .from("clients")
     .select("*")
-    .eq("agency_id", agency.id)
+    .eq("agency_id", agencyId)
     .order("created_at", { ascending: false })
 
   return data ?? []
 }
 
-export async function getClientById(id: string): Promise<Client | null> {
-  const agency = await ensureAgencyForCurrentUser()
-  if (!agency) return null
+export async function getClientById(id: string, agencyId?: string): Promise<Client | null> {
+  if (!agencyId) {
+    try { const a = await ensureAgencyForCurrentUser(); if (a) agencyId = a.id } catch { /* fail safe */ }
+  }
+  if (!agencyId) return null
 
   const supabase = await createSupabaseClient()
   const { data } = await supabase
     .from("clients")
     .select("*")
     .eq("id", id)
-    .eq("agency_id", agency.id)
+    .eq("agency_id", agencyId)
     .single()
 
   return data
